@@ -55,6 +55,10 @@ export const metadata: Metadata = {
     description: site.description,
   },
   robots: { index: true, follow: true },
+  icons: {
+    icon: [{ url: "/icon", type: "image/png", sizes: "48x48" }],
+    apple: [{ url: "/apple-icon", type: "image/png", sizes: "180x180" }],
+  },
 };
 
 const structuredData = [
@@ -63,6 +67,7 @@ const structuredData = [
     "@type": "Organization",
     name: site.name,
     url: site.url,
+    logo: `${site.url}/apple-icon`,
     description: site.description,
     email: site.contactEmail,
   },
