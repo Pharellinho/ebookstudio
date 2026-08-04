@@ -91,6 +91,7 @@ async function joinLocal(input: {
   email: string;
   referredBy: string | null;
   source: string | null;
+  ipHash?: string | null;
 }): Promise<SignupResult> {
   const entries = await readLocal();
   const existing = entries.find((entry) => entry.email === input.email);
@@ -200,6 +201,7 @@ async function joinSupabase(input: {
   email: string;
   referredBy: string | null;
   source: string | null;
+  ipHash?: string | null;
 }): Promise<SignupResult> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { ok: false, error: "storage" };
@@ -246,6 +248,7 @@ async function joinSupabase(input: {
         referred_by: referredBy,
         founder: isFounder,
         source: input.source,
+        ip_hash: input.ipHash ?? null,
       })
       .select("code, created_at")
       .single();
@@ -390,6 +393,7 @@ export async function joinWaitlist(input: {
   consent: boolean;
   referredBy?: string | null;
   source?: string | null;
+  ipHash?: string | null;
 }): Promise<SignupResult> {
   const email = normalise(input.email);
 
@@ -398,12 +402,13 @@ export async function joinWaitlist(input: {
 
   const referredBy = input.referredBy?.trim().toLowerCase() || null;
   const source = input.source?.slice(0, 120) ?? null;
+  const ipHash = input.ipHash?.trim() || null;
 
   try {
     if (usingLocalStore()) {
-      return await joinLocal({ email, referredBy, source });
+      return await joinLocal({ email, referredBy, source, ipHash });
     }
-    return await joinSupabase({ email, referredBy, source });
+    return await joinSupabase({ email, referredBy, source, ipHash });
   } catch (error) {
     console.error("joinWaitlist failed", error);
     return { ok: false, error: "storage" };

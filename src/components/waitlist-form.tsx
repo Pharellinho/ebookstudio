@@ -7,6 +7,7 @@ import { ArrowRight, Loader } from "lucide-react";
 const messages: Record<string, string> = {
   "invalid-email": "That email address does not look right.",
   "consent-required": "Please tick the box so we can email you at launch.",
+  "rate-limited": "Too many tries from this network. Wait a few minutes and try again.",
   storage: "Something broke on our side. Try again in a moment.",
 };
 
