@@ -1,7 +1,24 @@
+const domain = "ebookstudioai.com";
+
+function resolveSiteUrl() {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
+  const isLocal =
+    !configured || /localhost|127\.0\.0\.1/i.test(configured);
+
+  if (configured && !isLocal) return configured;
+
+  // Never put localhost into production emails / OG / canonicals.
+  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+    return `https://${domain}`;
+  }
+
+  return configured || "http://localhost:3000";
+}
+
 export const site = {
   name: "EbookStudio",
-  domain: "ebookstudioai.com",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://ebookstudioai.com",
+  domain,
+  url: resolveSiteUrl(),
   tagline: "Create once, get paid forever",
   description:
     "EbookStudio turns one idea into a full manuscript, a designed cover and store-ready PDF, EPUB and DOCX files. Join the waitlist before launch to lock the founding price.",
