@@ -14,6 +14,8 @@ function fromAddress() {
   );
 }
 
+const supportEmail = `hello@${site.domain}`;
+
 export type WaitlistEmailInput = {
   email: string;
   code: string;
@@ -31,15 +33,21 @@ export async function sendWaitlistConfirmation(
 
   const welcomeUrl = `${site.url}/welcome?code=${input.code}`;
   const referralUrl = `${site.url}/?ref=${input.code}`;
+  // Transactional wording helps Gmail avoid the Promotions tab.
   const subject = input.alreadyOnList
-    ? `Your ${site.name} spot is still #${input.position}`
-    : `You're #${input.position} on the ${site.name} waitlist`;
+    ? `${site.name} waitlist confirmation (spot #${input.position})`
+    : `${site.name} waitlist confirmation (spot #${input.position})`;
 
   try {
     const { error } = await resend.emails.send({
       from: fromAddress(),
       to: input.email,
+      replyTo: supportEmail,
       subject,
+      headers: {
+        "List-Unsubscribe": `<mailto:${supportEmail}?subject=unsubscribe>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
       html: renderWaitlistHtml({
         ...input,
         welcomeUrl,
@@ -75,18 +83,21 @@ function renderWaitlistText(input: {
   referralUrl: string;
 }) {
   const intro = input.alreadyOnList
-    ? `You're already on the ${site.name} waitlist at position #${input.position}.`
-    : `You're on the ${site.name} waitlist at position #${input.position}.`;
+    ? `This confirms you are already on the ${site.name} waitlist.`
+    : `This confirms your place on the ${site.name} waitlist.`;
 
   return [
     intro,
     "",
+    `Queue position: #${input.position}`,
     `Your spot page: ${input.welcomeUrl}`,
-    `Invite friends (each one moves you up ${founder.referralJump} places): ${input.referralUrl}`,
     "",
-    `On ${launch.label} we'll email you an access link with $${founder.monthlyPrice}/mo locked in.`,
+    `On ${launch.label} we will send your access link.`,
+    `Founding price locked for waitlist members: $${founder.monthlyPrice}/mo.`,
     "",
-    `Questions? ${site.contactEmail}`,
+    `Your personal invite link: ${input.referralUrl}`,
+    "",
+    `Support: ${supportEmail}`,
     site.name,
   ].join("\n");
 }
@@ -99,8 +110,8 @@ function renderWaitlistHtml(input: {
   subject: string;
 }) {
   const intro = input.alreadyOnList
-    ? `You're already on the list. Your founding spot is still reserved.`
-    : `Your founding spot is reserved.`;
+    ? `This confirms you are already on the ${site.name} waitlist.`
+    : `This confirms your place on the ${site.name} waitlist.`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -109,48 +120,35 @@ function renderWaitlistHtml(input: {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(input.subject)}</title>
   </head>
-  <body style="margin:0;padding:0;background:#f3efe6;color:#1c1915;font-family:Georgia,'Times New Roman',serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3efe6;padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#fffaf2;border:1px solid #e4dccb;border-radius:20px;overflow:hidden;">
-            <tr>
-              <td style="padding:36px 32px 28px;background:linear-gradient(180deg,#2f5d4a 0%,#244a3b 100%);color:#f7f1e6;">
-                <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;opacity:0.85;">${escapeHtml(site.name)}</p>
-                <h1 style="margin:14px 0 0;font-size:30px;line-height:1.2;font-weight:700;">${escapeHtml(intro)}</h1>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:28px 32px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-                <p style="margin:0;font-size:16px;line-height:1.6;color:#3f3a32;">
-                  You are <strong style="color:#1c1915;">#${input.position}</strong> in line.
-                  On ${escapeHtml(launch.label)} we will email you an access link with
-                  <strong style="color:#1c1915;">$${founder.monthlyPrice}/mo</strong> locked in.
-                </p>
-                <p style="margin:20px 0 0;">
-                  <a href="${escapeHtml(input.welcomeUrl)}" style="display:inline-block;background:#2f5d4a;color:#f7f1e6;text-decoration:none;font-weight:700;font-size:15px;padding:14px 22px;border-radius:999px;">
-                    Open your spot
-                  </a>
-                </p>
-                <p style="margin:28px 0 0;font-size:15px;line-height:1.6;color:#3f3a32;">
-                  Share your invite link — every friend who joins moves you up
-                  ${founder.referralJump} places and adds ${founder.referralCredits} bonus credits.
-                </p>
-                <p style="margin:12px 0 0;word-break:break-all;font-size:13px;line-height:1.5;">
-                  <a href="${escapeHtml(input.referralUrl)}" style="color:#2f5d4a;">${escapeHtml(input.referralUrl)}</a>
-                </p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:24px 32px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;line-height:1.5;color:#7a7265;">
-                Questions? Write to
-                <a href="mailto:${escapeHtml(site.contactEmail)}" style="color:#2f5d4a;">${escapeHtml(site.contactEmail)}</a>.
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
+  <body style="margin:0;padding:0;background:#ffffff;color:#111111;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+    <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
+      <p style="margin:0 0 8px;font-size:13px;color:#666666;">${escapeHtml(site.name)}</p>
+      <h1 style="margin:0 0 20px;font-size:22px;line-height:1.3;font-weight:700;">
+        Waitlist confirmation
+      </h1>
+      <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
+        ${escapeHtml(intro)}
+      </p>
+      <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
+        Queue position: <strong>#${input.position}</strong>
+      </p>
+      <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
+        Spot page:<br />
+        <a href="${escapeHtml(input.welcomeUrl)}" style="color:#111111;">${escapeHtml(input.welcomeUrl)}</a>
+      </p>
+      <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
+        On ${escapeHtml(launch.label)} we will send your access link.
+        Founding price for waitlist members: $${founder.monthlyPrice}/mo.
+      </p>
+      <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
+        Your personal invite link:<br />
+        <a href="${escapeHtml(input.referralUrl)}" style="color:#111111;">${escapeHtml(input.referralUrl)}</a>
+      </p>
+      <p style="margin:28px 0 0;font-size:13px;line-height:1.5;color:#666666;">
+        Support:
+        <a href="mailto:${escapeHtml(supportEmail)}" style="color:#666666;">${escapeHtml(supportEmail)}</a>
+      </p>
+    </div>
   </body>
 </html>`;
 }
