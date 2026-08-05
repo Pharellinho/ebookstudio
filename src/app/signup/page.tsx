@@ -1,29 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SignIn } from "@clerk/nextjs";
+import { SignUp } from "@clerk/nextjs";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Log in",
+  title: "Sign up",
   robots: { index: false, follow: false },
 };
 
-export default function LoginPage() {
+export default function SignUpPage() {
   return (
     <section className="py-16 lg:py-24">
       <div className="container-page mx-auto flex max-w-md flex-col items-center text-center">
         <h1 className="font-display text-3xl font-extrabold sm:text-4xl">
-          Log in to {site.name}
+          Create your {site.name} account
         </h1>
         <p className="mt-3 text-muted-foreground">
-          Continue with Google or use your email and password.
+          Sign up with Google or use your email and password.
         </p>
 
         <div className="mt-8 w-full">
-          <SignIn
+          <SignUp
             routing="hash"
             forceRedirectUrl="/create"
-            signUpUrl="/signup"
+            signInUrl="/login"
             appearance={{
               elements: {
                 rootBox: "mx-auto w-full",

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { formats } from "@/lib/content";
 import { IdeaForm } from "@/components/idea-form";
+import { getCurrentProfile } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Create your ebook",
@@ -11,12 +12,19 @@ export const metadata: Metadata = {
 export default async function CreatePage({
   searchParams,
 }: PageProps<"/create">) {
+  const profile = await getCurrentProfile();
   const params = await searchParams;
   const idea = typeof params.idea === "string" ? params.idea : "";
 
   return (
     <section className="py-16 lg:py-20">
       <div className="container-page mx-auto max-w-3xl">
+        {profile?.isFounder ? (
+          <p className="mb-4 inline-flex rounded-full border-2 border-foreground bg-primary px-3 py-1 text-xs font-bold">
+            Founding member — $19/mo locked at launch
+          </p>
+        ) : null}
+
         <h1 className="font-display text-3xl font-bold sm:text-4xl">
           {idea ? "Your brief" : "Start with one sentence"}
         </h1>
@@ -53,12 +61,13 @@ export default async function CreatePage({
 
         <div className="mt-12 rounded-2xl border border-dashed border-primary/40 bg-primary-soft/40 p-6">
           <p className="font-display text-base font-semibold text-primary-strong">
-            The generator is not wired up yet
+            You are signed in
+            {profile?.email ? ` as ${profile.email}` : ""}. Generation comes
+            next.
           </p>
           <p className="mt-2 leading-relaxed text-muted-foreground">
-            This screen is the entry point for the generation pipeline: outline,
-            chapters, cover, then export. Next step is connecting the model and
-            streaming chapters into a live preview.
+            Auth is live. Next we wire outline, chapters, cover and export —
+            the getebook-style studio loop.
           </p>
           <Link
             href="/"

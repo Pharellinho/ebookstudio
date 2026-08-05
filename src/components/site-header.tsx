@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { Logo } from "@/components/logo";
 
@@ -27,14 +28,40 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
-          <Link
-            href="/#founding-offer"
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border-2 border-foreground bg-primary px-4 py-2 text-sm font-extrabold text-on-primary shadow-sm transition-all duration-150 hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
-          >
-            Join the waitlist
-            <ArrowRight className="size-3.5" aria-hidden="true" />
-          </Link>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Show when="signed-out">
+            <SignInButton mode="redirect" forceRedirectUrl="/create">
+              <button
+                type="button"
+                className="hidden cursor-pointer text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground sm:inline"
+              >
+                Log in
+              </button>
+            </SignInButton>
+            <Link
+              href="/#founding-offer"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border-2 border-foreground bg-primary px-4 py-2 text-sm font-extrabold text-on-primary shadow-sm transition-all duration-150 hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+            >
+              Join the waitlist
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Link>
+          </Show>
+
+          <Show when="signed-in">
+            <Link
+              href="/create"
+              className="hidden text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            >
+              Studio
+            </Link>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "size-8 border-2 border-foreground",
+                },
+              }}
+            />
+          </Show>
 
           <details className="group relative md:hidden">
             <summary
@@ -57,6 +84,22 @@ export function SiteHeader() {
                   {link.label}
                 </Link>
               ))}
+              <Show when="signed-out">
+                <Link
+                  href="/login"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground"
+                >
+                  Log in
+                </Link>
+              </Show>
+              <Show when="signed-in">
+                <Link
+                  href="/create"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground"
+                >
+                  Studio
+                </Link>
+              </Show>
             </nav>
           </details>
         </div>
