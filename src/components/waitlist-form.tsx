@@ -7,7 +7,10 @@ import { ArrowRight, Loader } from "lucide-react";
 const messages: Record<string, string> = {
   "invalid-email": "That email address does not look right.",
   "consent-required": "Please tick the box so we can email you at launch.",
-  "rate-limited": "Too many tries from this network. Wait a few minutes and try again.",
+  "rate-limited":
+    "Too many tries from this network. Wait a few minutes and try again.",
+  forbidden: "Something blocked that request. Refresh and try again.",
+  unavailable: "Signups are temporarily unavailable. Try again shortly.",
   storage: "Something broke on our side. Try again in a moment.",
 };
 
@@ -17,18 +20,20 @@ export function WaitlistForm({ compact = false }: { compact?: boolean }) {
   const [consent, setConsent] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const referredBy = useRef<string | null>(null);
   const source = useRef<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     referredBy.current = params.get("ref");
-    source.current = params.get("utm_source") ?? (document.referrer || null);
+    source.current = params.get("utm_source") ?? null;
   }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    setInfo(null);
     setPending(true);
 
     try {
@@ -51,7 +56,21 @@ export function WaitlistForm({ compact = false }: { compact?: boolean }) {
         return;
       }
 
-      router.push(`/welcome?code=${data.code}`);
+      if (data.alreadyOnList) {
+        setInfo(
+          "You are already on the list. We sent a fresh confirmation link to your inbox if you have not confirmed yet.",
+        );
+        setPending(false);
+        return;
+      }
+
+      if (typeof data.code === "string" && data.code) {
+        router.push(`/welcome?code=${data.code}`);
+        return;
+      }
+
+      setInfo("Check your inbox for your confirmation link.");
+      setPending(false);
     } catch {
       setError(messages.storage);
       setPending(false);
@@ -105,6 +124,11 @@ export function WaitlistForm({ compact = false }: { compact?: boolean }) {
       {error ? (
         <p role="alert" className="mt-2 text-sm font-medium text-destructive">
           {error}
+        </p>
+      ) : null}
+      {info ? (
+        <p role="status" className="mt-2 text-sm font-medium text-foreground">
+          {info}
         </p>
       ) : null}
     </form>

@@ -8,6 +8,7 @@ import { getSupabaseAdmin, supabaseConfigured } from "@/lib/supabase/admin";
 export type WaitlistEntry = {
   email: string;
   code: string;
+  confirmToken: string;
   referredBy: string | null;
   createdAt: string;
   confirmedAt: string | null;
@@ -16,20 +17,41 @@ export type WaitlistEntry = {
 };
 
 export type SignupResult =
-  | { ok: true; code: string; position: number; alreadyOnList: boolean }
-  | { ok: false; error: "invalid-email" | "consent-required" | "storage" };
+  | {
+      ok: true;
+      alreadyOnList: false;
+      code: string;
+      confirmToken: string;
+      position: number;
+    }
+  | {
+      ok: true;
+      alreadyOnList: true;
+      /** Server-only payload for throttled resend — never put in API JSON. */
+      resend: {
+        code: string;
+        confirmToken: string;
+        position: number;
+      };
+    }
+  | {
+      ok: false;
+      error: "invalid-email" | "consent-required" | "storage" | "unavailable";
+    };
 
 export type WaitlistStanding = {
-  email: string;
+  emailMasked: string;
   position: number;
   referrals: number;
   founder: boolean;
   bonusCredits: number;
   spotsLeft: number;
   freeSpotEarned: boolean;
+  confirmed: boolean;
 };
 
 const LOCAL_STORE = path.join(process.cwd(), ".data", "waitlist.json");
+const INVITE_CODE_PATTERN = /^[a-f0-9]{8,64}$/;
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
 
@@ -38,7 +60,33 @@ function normalise(email: string) {
 }
 
 function makeCode() {
-  return randomBytes(4).toString("hex");
+  return randomBytes(16).toString("hex");
+}
+
+function makeConfirmToken() {
+  return randomBytes(16).toString("hex");
+}
+
+export function maskEmail(email: string) {
+  const [user, domain] = email.split("@");
+  if (!user || !domain) return "***";
+  const keep = Math.min(2, user.length);
+  return `${user.slice(0, keep)}***@${domain}`;
+}
+
+export function sanitizeSource(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim().slice(0, 120);
+  if (!trimmed) return null;
+
+  if (/^[a-z0-9_\-]{1,64}$/i.test(trimmed)) return trimmed.toLowerCase();
+
+  try {
+    const url = new URL(trimmed);
+    return url.hostname.slice(0, 120) || null;
+  } catch {
+    return trimmed.replace(/[^\w.\-:/]/g, "").slice(0, 64) || null;
+  }
 }
 
 /** Effective queue position after referral boosts. */
@@ -52,9 +100,10 @@ function standingFrom(input: {
   rawPosition: number;
   referrals: number;
   foundersTaken: number;
+  confirmed: boolean;
 }): WaitlistStanding {
   return {
-    email: input.email,
+    emailMasked: maskEmail(input.email),
     position: effectivePosition(input.rawPosition, input.referrals),
     referrals: input.referrals,
     founder: input.founder,
@@ -62,7 +111,12 @@ function standingFrom(input: {
       founder.bonusCredits + input.referrals * founder.referralCredits,
     spotsLeft: Math.max(founder.spots - input.foundersTaken, 0),
     freeSpotEarned: input.referrals >= founder.referralsForFreeSpot,
+    confirmed: input.confirmed,
   };
+}
+
+function isProductionRuntime() {
+  return process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
 }
 
 export function usingLocalStore() {
@@ -76,7 +130,12 @@ export function usingLocalStore() {
 async function readLocal(): Promise<WaitlistEntry[]> {
   try {
     const raw = await readFile(LOCAL_STORE, "utf8");
-    return JSON.parse(raw) as WaitlistEntry[];
+    const parsed = JSON.parse(raw) as Array<Partial<WaitlistEntry> & WaitlistEntry>;
+    return parsed.map((entry) => ({
+      ...entry,
+      confirmToken: entry.confirmToken || makeConfirmToken(),
+      confirmedAt: entry.confirmedAt ?? null,
+    }));
   } catch {
     return [];
   }
@@ -87,25 +146,36 @@ async function writeLocal(entries: WaitlistEntry[]) {
   await writeFile(LOCAL_STORE, JSON.stringify(entries, null, 2), "utf8");
 }
 
+function countConfirmedReferralsLocal(entries: WaitlistEntry[], code: string) {
+  return entries.filter(
+    (item) => item.referredBy === code && item.confirmedAt,
+  ).length;
+}
+
 async function joinLocal(input: {
   email: string;
   referredBy: string | null;
   source: string | null;
   ipHash?: string | null;
 }): Promise<SignupResult> {
+  if (isProductionRuntime()) {
+    return { ok: false, error: "unavailable" };
+  }
+
   const entries = await readLocal();
   const existing = entries.find((entry) => entry.email === input.email);
 
   if (existing) {
     const index = entries.indexOf(existing);
-    const referrals = entries.filter(
-      (item) => item.referredBy === existing.code,
-    ).length;
+    const referrals = countConfirmedReferralsLocal(entries, existing.code);
     return {
       ok: true,
-      code: existing.code,
-      position: effectivePosition(index + 1, referrals),
       alreadyOnList: true,
+      resend: {
+        code: existing.code,
+        confirmToken: existing.confirmToken,
+        position: effectivePosition(index + 1, referrals),
+      },
     };
   }
 
@@ -113,7 +183,6 @@ async function joinLocal(input: {
     ? entries.find((entry) => entry.code === input.referredBy)
     : undefined;
 
-  // Ignore unknown codes and self-invites (same email).
   const referredBy =
     referrer && referrer.email !== input.email ? referrer.code : null;
   const isFounder = entries.length < founder.spots;
@@ -121,6 +190,7 @@ async function joinLocal(input: {
   const entry: WaitlistEntry = {
     email: input.email,
     code: makeCode(),
+    confirmToken: makeConfirmToken(),
     referredBy,
     createdAt: new Date().toISOString(),
     confirmedAt: null,
@@ -133,9 +203,10 @@ async function joinLocal(input: {
 
   return {
     ok: true,
-    code: entry.code,
-    position: entries.length,
     alreadyOnList: false,
+    code: entry.code,
+    confirmToken: entry.confirmToken,
+    position: entries.length,
   };
 }
 
@@ -145,7 +216,7 @@ async function standingLocal(code: string): Promise<WaitlistStanding | null> {
   if (index === -1) return null;
 
   const entry = entries[index];
-  const referrals = entries.filter((item) => item.referredBy === code).length;
+  const referrals = countConfirmedReferralsLocal(entries, code);
   const foundersTaken = Math.min(
     entries.filter((item) => item.founder).length || entries.length,
     founder.spots,
@@ -157,7 +228,19 @@ async function standingLocal(code: string): Promise<WaitlistStanding | null> {
     rawPosition: index + 1,
     referrals,
     foundersTaken,
+    confirmed: Boolean(entry.confirmedAt),
   });
+}
+
+async function confirmLocal(code: string, token: string): Promise<boolean> {
+  const entries = await readLocal();
+  const entry = entries.find((item) => item.code === code);
+  if (!entry || entry.confirmToken !== token) return false;
+  if (!entry.confirmedAt) {
+    entry.confirmedAt = new Date().toISOString();
+    await writeLocal(entries);
+  }
+  return true;
 }
 
 async function statsLocal() {
@@ -180,7 +263,7 @@ async function resolveReferrer(
   referredBy: string | null,
   signupEmail: string,
 ): Promise<string | null> {
-  if (!referredBy) return null;
+  if (!referredBy || !INVITE_CODE_PATTERN.test(referredBy)) return null;
 
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
@@ -191,7 +274,6 @@ async function resolveReferrer(
     .eq("code", referredBy)
     .maybeSingle();
 
-  // Ignore unknown codes and self-invites (same email).
   if (!data || data.email === signupEmail) return null;
 
   return data.code;
@@ -208,7 +290,7 @@ async function joinSupabase(input: {
 
   const { data: existing } = await supabase
     .from("waitlist")
-    .select("code, created_at")
+    .select("code, confirm_token, created_at")
     .eq("email", input.email)
     .maybeSingle();
 
@@ -217,9 +299,12 @@ async function joinSupabase(input: {
     const referrals = await countReferrals(existing.code);
     return {
       ok: true,
-      code: existing.code,
-      position: effectivePosition(position, referrals),
       alreadyOnList: true,
+      resend: {
+        code: existing.code,
+        confirmToken: existing.confirm_token,
+        position: effectivePosition(position, referrals),
+      },
     };
   }
 
@@ -237,39 +322,42 @@ async function joinSupabase(input: {
   const foundersTaken = foundersBefore ?? totalBefore ?? 0;
   const isFounder = foundersTaken < founder.spots;
 
-  // Retry once if the invite code collides (very unlikely with 8 hex chars).
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     const code = makeCode();
+    const confirmToken = makeConfirmToken();
     const { data, error } = await supabase
       .from("waitlist")
       .insert({
         email: input.email,
         code,
+        confirm_token: confirmToken,
         referred_by: referredBy,
         founder: isFounder,
         source: input.source,
         ip_hash: input.ipHash ?? null,
+        confirmed_at: null,
       })
-      .select("code, created_at")
+      .select("code, confirm_token, created_at")
       .single();
 
     if (error) {
-      // Unique violation on invite code — mint another and retry.
       if (
         error.code === "23505" &&
-        (error.message.includes("code") || error.details?.includes("code"))
+        (error.message.includes("code") ||
+          error.message.includes("confirm_token") ||
+          error.details?.includes("code") ||
+          error.details?.includes("confirm_token"))
       ) {
         continue;
       }
 
-      // Race: same email inserted concurrently — return the existing row.
       if (
         error.code === "23505" &&
         (error.message.includes("email") || error.details?.includes("email"))
       ) {
         const { data: raced } = await supabase
           .from("waitlist")
-          .select("code, created_at")
+          .select("code, confirm_token, created_at")
           .eq("email", input.email)
           .maybeSingle();
 
@@ -278,9 +366,12 @@ async function joinSupabase(input: {
           const referrals = await countReferrals(raced.code);
           return {
             ok: true,
-            code: raced.code,
-            position: effectivePosition(position, referrals),
             alreadyOnList: true,
+            resend: {
+              code: raced.code,
+              confirmToken: raced.confirm_token,
+              position: effectivePosition(position, referrals),
+            },
           };
         }
       }
@@ -293,9 +384,10 @@ async function joinSupabase(input: {
 
     return {
       ok: true,
-      code: data.code,
-      position: rawPosition,
       alreadyOnList: false,
+      code: data.code,
+      confirmToken: data.confirm_token,
+      position: rawPosition,
     };
   }
 
@@ -306,7 +398,6 @@ async function rawPositionFor(createdAt: string, code: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return 1;
 
-  // Rank by join time; break ties with code for stability.
   const [{ count: before }, { count: sameTimeEarlier }] = await Promise.all([
     supabase
       .from("waitlist")
@@ -329,7 +420,8 @@ async function countReferrals(code: string) {
   const { count } = await supabase
     .from("waitlist")
     .select("*", { count: "exact", head: true })
-    .eq("referred_by", code);
+    .eq("referred_by", code)
+    .not("confirmed_at", "is", null);
 
   return count ?? 0;
 }
@@ -342,7 +434,7 @@ async function standingSupabase(
 
   const { data: entry } = await supabase
     .from("waitlist")
-    .select("email, code, created_at, founder")
+    .select("email, code, created_at, founder, confirmed_at")
     .eq("code", code)
     .maybeSingle();
 
@@ -363,7 +455,36 @@ async function standingSupabase(
     rawPosition,
     referrals,
     foundersTaken: foundersResult.count ?? 0,
+    confirmed: Boolean(entry.confirmed_at),
   });
+}
+
+async function confirmSupabase(code: string, token: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+
+  const { data: entry } = await supabase
+    .from("waitlist")
+    .select("code, confirm_token, confirmed_at")
+    .eq("code", code)
+    .maybeSingle();
+
+  if (!entry || entry.confirm_token !== token) return false;
+
+  if (!entry.confirmed_at) {
+    const { error } = await supabase
+      .from("waitlist")
+      .update({ confirmed_at: new Date().toISOString() })
+      .eq("code", code)
+      .eq("confirm_token", token);
+
+    if (error) {
+      console.error("waitlist confirm failed", error);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 async function statsSupabase() {
@@ -400,8 +521,12 @@ export async function joinWaitlist(input: {
   if (!emailPattern.test(email)) return { ok: false, error: "invalid-email" };
   if (!input.consent) return { ok: false, error: "consent-required" };
 
+  if (usingLocalStore() && isProductionRuntime()) {
+    return { ok: false, error: "unavailable" };
+  }
+
   const referredBy = input.referredBy?.trim().toLowerCase() || null;
-  const source = input.source?.slice(0, 120) ?? null;
+  const source = sanitizeSource(input.source);
   const ipHash = input.ipHash?.trim() || null;
 
   try {
@@ -419,7 +544,7 @@ export async function getStanding(
   code: string,
 ): Promise<WaitlistStanding | null> {
   const normalised = code.trim().toLowerCase();
-  if (!normalised) return null;
+  if (!INVITE_CODE_PATTERN.test(normalised)) return null;
 
   try {
     if (usingLocalStore()) return await standingLocal(normalised);
@@ -427,6 +552,29 @@ export async function getStanding(
   } catch (error) {
     console.error("getStanding failed", error);
     return null;
+  }
+}
+
+/** Marks the waitlist row confirmed when the email link token matches. */
+export async function confirmWaitlist(
+  code: string,
+  token: string,
+): Promise<boolean> {
+  const normalisedCode = code.trim().toLowerCase();
+  const normalisedToken = token.trim().toLowerCase();
+  if (
+    !INVITE_CODE_PATTERN.test(normalisedCode) ||
+    !INVITE_CODE_PATTERN.test(normalisedToken)
+  ) {
+    return false;
+  }
+
+  try {
+    if (usingLocalStore()) return await confirmLocal(normalisedCode, normalisedToken);
+    return await confirmSupabase(normalisedCode, normalisedToken);
+  } catch (error) {
+    console.error("confirmWaitlist failed", error);
+    return false;
   }
 }
 

@@ -8,10 +8,14 @@ function getResend() {
 }
 
 function fromAddress() {
-  return (
-    process.env.RESEND_FROM_EMAIL?.trim() ||
-    `${site.name} <onboarding@resend.dev>`
-  );
+  const configured = process.env.RESEND_FROM_EMAIL?.trim();
+  if (configured) return configured;
+
+  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  return `${site.name} <onboarding@resend.dev>`;
 }
 
 const supportEmail = `hello@${site.domain}`;
@@ -19,6 +23,7 @@ const supportEmail = `hello@${site.domain}`;
 export type WaitlistEmailInput = {
   email: string;
   code: string;
+  confirmToken: string;
   position: number;
   alreadyOnList: boolean;
 };
@@ -31,16 +36,18 @@ export async function sendWaitlistConfirmation(
     return { sent: false, reason: "missing-api-key" };
   }
 
-  const welcomeUrl = `${site.url}/welcome?code=${input.code}`;
+  const from = fromAddress();
+  if (!from) {
+    return { sent: false, reason: "missing-from-email" };
+  }
+
+  const welcomeUrl = `${site.url}/welcome?code=${input.code}&confirm=${input.confirmToken}`;
   const referralUrl = `${site.url}/?ref=${input.code}`;
-  // Transactional wording helps Gmail avoid the Promotions tab.
-  const subject = input.alreadyOnList
-    ? `${site.name} waitlist confirmation (spot #${input.position})`
-    : `${site.name} waitlist confirmation (spot #${input.position})`;
+  const subject = `${site.name} waitlist confirmation (spot #${input.position})`;
 
   try {
     const { error } = await resend.emails.send({
-      from: fromAddress(),
+      from,
       to: input.email,
       replyTo: supportEmail,
       subject,
@@ -90,7 +97,7 @@ function renderWaitlistText(input: {
     intro,
     "",
     `Queue position: #${input.position}`,
-    `Your spot page: ${input.welcomeUrl}`,
+    `Confirm and open your spot (required for referral credit): ${input.welcomeUrl}`,
     "",
     `On ${launch.label} we will send your access link.`,
     `Founding price locked for waitlist members: $${founder.monthlyPrice}/mo.`,
@@ -133,7 +140,7 @@ function renderWaitlistHtml(input: {
         Queue position: <strong>#${input.position}</strong>
       </p>
       <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
-        Spot page:<br />
+        Open this link to confirm your email (needed before referrals count):<br />
         <a href="${escapeHtml(input.welcomeUrl)}" style="color:#111111;">${escapeHtml(input.welcomeUrl)}</a>
       </p>
       <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
@@ -158,5 +165,6 @@ function escapeHtml(value: string) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }

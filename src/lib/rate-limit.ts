@@ -7,23 +7,32 @@ type WindowState = {
 };
 
 const memory = new Map<string, WindowState>();
+const MEMORY_MAX_KEYS = 5_000;
 
 export type RateLimitResult =
   | { ok: true; remaining: number; resetAt: number }
   | { ok: false; remaining: 0; resetAt: number; retryAfterSec: number };
 
+function isProductionRuntime() {
+  return process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+}
+
 export function hashIp(ip: string): string {
-  const salt =
-    process.env.RATE_LIMIT_SALT?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 24) ||
-    "ebookstudio-local";
+  const salt = process.env.RATE_LIMIT_SALT?.trim() || "ebookstudio-local";
   return createHash("sha256").update(`${salt}:${ip}`).digest("hex").slice(0, 32);
 }
 
+export function hashEmail(email: string): string {
+  const salt = process.env.RATE_LIMIT_SALT?.trim() || "ebookstudio-local";
+  return createHash("sha256")
+    .update(`${salt}:email:${email.trim().toLowerCase()}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
 /**
- * Sliding fixed-window limiter.
- * Uses Supabase when configured (works across Vercel instances),
- * otherwise falls back to in-memory (fine for local / single instance).
+ * Fixed-window limiter.
+ * Prefers atomic Supabase RPC; fails closed in production if durable store errors.
  */
 export async function checkRateLimit(
   key: string,
@@ -33,7 +42,31 @@ export async function checkRateLimit(
   if (supabase) {
     return checkSupabase(supabase, key, options);
   }
+
+  if (isProductionRuntime()) {
+    console.error("rate-limit unavailable: supabase not configured");
+    const resetAt = Date.now() + options.windowMs;
+    return {
+      ok: false,
+      remaining: 0,
+      resetAt,
+      retryAfterSec: Math.ceil(options.windowMs / 1000),
+    };
+  }
+
   return checkMemory(key, options);
+}
+
+function pruneMemory(now: number, windowMs: number) {
+  if (memory.size <= MEMORY_MAX_KEYS) return;
+  for (const [k, state] of memory) {
+    if (now - state.windowStart >= windowMs) memory.delete(k);
+    if (memory.size <= MEMORY_MAX_KEYS * 0.8) break;
+  }
+  if (memory.size > MEMORY_MAX_KEYS) {
+    const oldest = memory.keys().next().value;
+    if (oldest) memory.delete(oldest);
+  }
 }
 
 function checkMemory(
@@ -41,6 +74,7 @@ function checkMemory(
   options: { limit: number; windowMs: number },
 ): RateLimitResult {
   const now = Date.now();
+  pruneMemory(now, options.windowMs);
   const current = memory.get(key);
 
   if (!current || now - current.windowStart >= options.windowMs) {
@@ -72,76 +106,63 @@ function checkMemory(
   };
 }
 
+function failClosed(options: { windowMs: number }, reason: string): RateLimitResult {
+  console.error(reason);
+  const resetAt = Date.now() + options.windowMs;
+  return {
+    ok: false,
+    remaining: 0,
+    resetAt,
+    retryAfterSec: Math.max(1, Math.ceil(options.windowMs / 1000)),
+  };
+}
+
 async function checkSupabase(
   supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
   key: string,
   options: { limit: number; windowMs: number },
 ): Promise<RateLimitResult> {
-  const now = Date.now();
+  const windowSeconds = Math.max(1, Math.ceil(options.windowMs / 1000));
 
-  const { data: row, error } = await supabase
-    .from("api_rate_limits")
-    .select("key, count, window_start")
-    .eq("key", key)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("bump_rate_limit", {
+    p_key: key,
+    p_limit: options.limit,
+    p_window_seconds: windowSeconds,
+  });
 
   if (error) {
-    // Table missing or RLS — fail open with memory so signups still work.
-    console.error("rate-limit supabase read failed", error.message);
-    return checkMemory(key, options);
-  }
-
-  const windowStart = row ? new Date(row.window_start).getTime() : 0;
-  const inWindow = Boolean(row && now - windowStart < options.windowMs);
-
-  if (!inWindow) {
-    const { error: upsertError } = await supabase.from("api_rate_limits").upsert(
-      {
-        key,
-        count: 1,
-        window_start: new Date(now).toISOString(),
-      },
-      { onConflict: "key" },
-    );
-
-    if (upsertError) {
-      console.error("rate-limit supabase upsert failed", upsertError.message);
-      return checkMemory(key, options);
+    if (isProductionRuntime()) {
+      return failClosed(
+        options,
+        `rate-limit rpc failed (fail closed): ${error.message}`,
+      );
     }
-
-    return {
-      ok: true,
-      remaining: options.limit - 1,
-      resetAt: now + options.windowMs,
-    };
-  }
-
-  const nextCount = (row!.count as number) + 1;
-  const { error: updateError } = await supabase
-    .from("api_rate_limits")
-    .update({ count: nextCount })
-    .eq("key", key)
-    .eq("window_start", row!.window_start);
-
-  if (updateError) {
-    console.error("rate-limit supabase update failed", updateError.message);
+    console.error("rate-limit rpc failed, memory fallback", error.message);
     return checkMemory(key, options);
   }
 
-  const resetAt = windowStart + options.windowMs;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row.allowed !== "boolean") {
+    if (isProductionRuntime()) {
+      return failClosed(options, "rate-limit rpc returned unexpected payload");
+    }
+    return checkMemory(key, options);
+  }
 
-  if (nextCount > options.limit) {
+  const resetAt = new Date(row.reset_at).getTime();
+
+  if (!row.allowed) {
     return {
       ok: false,
       remaining: 0,
       resetAt,
-      retryAfterSec: Math.max(1, Math.ceil((resetAt - now) / 1000)),
+      retryAfterSec: Math.max(1, Math.ceil((resetAt - Date.now()) / 1000)),
     };
   }
 
   return {
     ok: true,
-    remaining: options.limit - nextCount,
+    remaining: Number(row.remaining) || 0,
     resetAt,
   };
 }
