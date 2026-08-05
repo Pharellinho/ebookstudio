@@ -24,10 +24,8 @@ export async function Hero() {
         </p>
 
         <h1 className="mx-auto mt-7 max-w-4xl font-display text-5xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
-          Create once.{" "}
-          <span className="box-decoration-clone bg-primary px-2">
-            Get paid forever.
-          </span>
+          Turn your idea into{" "}
+          <span className="box-decoration-clone bg-primary px-2">a book</span>
         </h1>
 
         <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
