@@ -18,14 +18,27 @@ function isProductionRuntime() {
 }
 
 export function hashIp(ip: string): string {
-  const salt = process.env.RATE_LIMIT_SALT?.trim() || "ebookstudio-local";
-  return createHash("sha256").update(`${salt}:${ip}`).digest("hex").slice(0, 32);
+  const salt = process.env.RATE_LIMIT_SALT?.trim();
+  if (!salt) {
+    if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+      throw new Error("RATE_LIMIT_SALT is required in production");
+    }
+  }
+  return createHash("sha256")
+    .update(`${salt || "ebookstudio-local"}:${ip}`)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 export function hashEmail(email: string): string {
-  const salt = process.env.RATE_LIMIT_SALT?.trim() || "ebookstudio-local";
+  const salt = process.env.RATE_LIMIT_SALT?.trim();
+  if (!salt) {
+    if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+      throw new Error("RATE_LIMIT_SALT is required in production");
+    }
+  }
   return createHash("sha256")
-    .update(`${salt}:email:${email.trim().toLowerCase()}`)
+    .update(`${salt || "ebookstudio-local"}:email:${email.trim().toLowerCase()}`)
     .digest("hex")
     .slice(0, 32);
 }

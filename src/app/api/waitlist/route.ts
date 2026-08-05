@@ -14,10 +14,16 @@ const EMAIL_RESEND_WINDOW_MS = 60 * 60 * 1000;
 
 function originAllowed(request: Request): boolean {
   const origin = request.headers.get("origin");
+  const isProd =
+    process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+
   if (!origin) {
-    // Same-origin navigations / some clients omit Origin on POST.
     const fetchSite = request.headers.get("sec-fetch-site");
     if (fetchSite === "cross-site") return false;
+    // In production require Origin or same-origin fetch metadata.
+    if (isProd && fetchSite && fetchSite !== "same-origin" && fetchSite !== "same-site" && fetchSite !== "none") {
+      return false;
+    }
     return true;
   }
 
@@ -26,8 +32,9 @@ function originAllowed(request: Request): boolean {
       site.url,
       `https://${site.domain}`,
       `https://www.${site.domain}`,
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
+      ...(!isProd
+        ? ["http://localhost:3000", "http://127.0.0.1:3000"]
+        : []),
     ].map((value) => value.replace(/\/$/, "")),
   );
 
@@ -117,9 +124,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // Never return invite code for existing emails (closes IDOR).
+    // Uniform response: never reveal membership or invite codes in JSON.
     return NextResponse.json(
-      { alreadyOnList: true },
+      { ok: true },
       {
         headers: {
           "X-RateLimit-Limit": String(WAITLIST_LIMIT),
@@ -138,12 +145,9 @@ export async function POST(request: Request) {
     alreadyOnList: false,
   });
 
+  // New signups also get a uniform JSON body; the confirm link is email-only.
   return NextResponse.json(
-    {
-      code: result.code,
-      position: result.position,
-      alreadyOnList: false,
-    },
+    { ok: true },
     {
       headers: {
         "X-RateLimit-Limit": String(WAITLIST_LIMIT),

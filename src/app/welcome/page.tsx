@@ -97,12 +97,8 @@ export default async function WelcomePage({
           Your founding spot is reserved
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-          Confirmation linked to{" "}
-          <span className="font-semibold text-foreground">
-            {standing.emailMasked}
-          </span>
-          . On {launch.label} we email you an access link with $
-          {founder.monthlyPrice}/mo locked in.
+          Your spot is reserved. On {launch.label} we email you an access link
+          with ${founder.monthlyPrice}/mo locked in.
           {!standing.confirmed ? (
             <>
               {" "}

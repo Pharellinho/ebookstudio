@@ -1,5 +1,5 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { founder } from "@/lib/site";
@@ -65,6 +65,13 @@ function makeCode() {
 
 function makeConfirmToken() {
   return randomBytes(16).toString("hex");
+}
+
+function tokensMatch(left: string, right: string) {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 export function maskEmail(email: string) {
@@ -235,7 +242,7 @@ async function standingLocal(code: string): Promise<WaitlistStanding | null> {
 async function confirmLocal(code: string, token: string): Promise<boolean> {
   const entries = await readLocal();
   const entry = entries.find((item) => item.code === code);
-  if (!entry || entry.confirmToken !== token) return false;
+  if (!entry || !tokensMatch(entry.confirmToken, token)) return false;
   if (!entry.confirmedAt) {
     entry.confirmedAt = new Date().toISOString();
     await writeLocal(entries);
@@ -469,7 +476,7 @@ async function confirmSupabase(code: string, token: string): Promise<boolean> {
     .eq("code", code)
     .maybeSingle();
 
-  if (!entry || entry.confirm_token !== token) return false;
+  if (!entry || !tokensMatch(entry.confirm_token, token)) return false;
 
   if (!entry.confirmed_at) {
     const { error } = await supabase

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Loader } from "lucide-react";
 
@@ -15,7 +14,6 @@ const messages: Record<string, string> = {
 };
 
 export function WaitlistForm({ compact = false }: { compact?: boolean }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
   const [pending, setPending] = useState(false);
@@ -56,20 +54,9 @@ export function WaitlistForm({ compact = false }: { compact?: boolean }) {
         return;
       }
 
-      if (data.alreadyOnList) {
-        setInfo(
-          "You are already on the list. We sent a fresh confirmation link to your inbox if you have not confirmed yet.",
-        );
-        setPending(false);
-        return;
-      }
-
-      if (typeof data.code === "string" && data.code) {
-        router.push(`/welcome?code=${data.code}`);
-        return;
-      }
-
-      setInfo("Check your inbox for your confirmation link.");
+      setInfo(
+        "Check your inbox for a confirmation link to open your spot. If nothing arrives in a minute, look in spam.",
+      );
       setPending(false);
     } catch {
       setError(messages.storage);
