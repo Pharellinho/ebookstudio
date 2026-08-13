@@ -9,15 +9,17 @@ function resolveSiteUrl() {
 
   if (configured && !isLocal) {
     // Normalize apex → www so sitemap/OG don't fight the live 308 redirect.
+    // Ignore placeholder/invalid values like the literal "NEXT_PUBLIC_SITE_URL".
     try {
       const url = new URL(configured);
-      if (url.hostname === domain) {
-        url.hostname = `www.${domain}`;
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        if (url.hostname === domain) {
+          url.hostname = `www.${domain}`;
+        }
         return url.origin;
       }
-      return url.origin;
     } catch {
-      return configured;
+      // fall through to production / local defaults
     }
   }
 
@@ -26,7 +28,7 @@ function resolveSiteUrl() {
     return canonicalOrigin;
   }
 
-  return configured || "http://localhost:3000";
+  return configured && isLocal ? configured : "http://localhost:3000";
 }
 
 export const site = {
