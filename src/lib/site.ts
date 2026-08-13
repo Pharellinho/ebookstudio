@@ -1,15 +1,29 @@
 const domain = "ebookstudioai.com";
+/** Canonical host — Vercel redirects apex → www; keep sitemap/canonicals on www. */
+const canonicalOrigin = `https://www.${domain}`;
 
 function resolveSiteUrl() {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
   const isLocal =
     !configured || /localhost|127\.0\.0\.1/i.test(configured);
 
-  if (configured && !isLocal) return configured;
+  if (configured && !isLocal) {
+    // Normalize apex → www so sitemap/OG don't fight the live 308 redirect.
+    try {
+      const url = new URL(configured);
+      if (url.hostname === domain) {
+        url.hostname = `www.${domain}`;
+        return url.origin;
+      }
+      return url.origin;
+    } catch {
+      return configured;
+    }
+  }
 
   // Never put localhost into production emails / OG / canonicals.
   if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
-    return `https://${domain}`;
+    return canonicalOrigin;
   }
 
   return configured || "http://localhost:3000";
