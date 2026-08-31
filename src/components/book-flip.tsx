@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { PageFlip } from "page-flip";
+import type { PageFlipSettings } from "page-flip";
 import type { SampleBook, SamplePage } from "@/lib/samples";
 
 const SLIDE_WIDTH = "min(20rem, 78vw)";
@@ -15,10 +17,6 @@ const SLIDE_MS = 420;
 /** Triple the deck so the track always has a neighbour on both sides. */
 const LOOP_COPIES = 3;
 
-/** How far the corner lifts when the pointer rests over an edge. */
-const PEEK = 0.07;
-/** Fraction of a drag past which releasing completes the turn. */
-const COMMIT_AT = 0.32;
 
 function wrapIndex(value: number, length: number) {
   return ((value % length) + length) % length;
@@ -138,6 +136,7 @@ function MobileBookShelf({ books }: { books: SampleBook[] }) {
           key={book.id}
           book={book}
           interactive
+          live={paused}
           onInteract={pauseAutoplay}
         />
       </div>
@@ -300,6 +299,7 @@ function DesktopBookCarousel({ books }: { books: SampleBook[] }) {
                   <BookFlip
                     book={slide.book}
                     interactive={isActive}
+                    live={isActive && paused}
                     onInteract={pauseAutoplay}
                   />
                 </div>
@@ -321,368 +321,221 @@ function DesktopBookCarousel({ books }: { books: SampleBook[] }) {
   );
 }
 
-type Phase = "peek" | "drag" | "settle";
+/* Page turning is StPageFlip's job from here down. It takes real DOM nodes and
+   moves them into its own structure, so FlipDeck is the only place allowed to
+   touch the page elements — everything above (carousel, autoplay) and every
+   page component below is unchanged. */
 
-type Turn = {
-  to: number;
-  direction: 1 | -1;
-  /** 0 is flat on the book, 1 is fully turned. */
-  progress: number;
-  phase: Phase;
-  /** Where the current animation is headed, or the live progress while dragging. */
-  target: number;
-  completing: boolean;
-};
+const FLIP_SETTINGS = {
+  /* 2:3, the ratio the deck has always used (aspect-2/3). With size "stretch"
+     these two numbers are the ratio, not fixed pixels. */
+  width: 320,
+  height: 480,
+  size: "stretch",
+  /* Portrait needs blockWidth < minWidth * 2, and the slide is at most 320px,
+     so 200 keeps the deck on a single page at every breakpoint. */
+  minWidth: 200,
+  maxWidth: 420,
+  minHeight: 300,
+  maxHeight: 630,
+  autoSize: true,
+  usePortrait: true,
+  /* showCover exists only to turn page 0 into a rigid board cover. This deck
+     wants every page to curl alike, so it stays off — see the density pass
+     after loadFromHTML for the rest of the story. */
+  showCover: false,
+  drawShadow: true,
+  maxShadowOpacity: 0.5,
+  flippingTime: 700,
+  swipeDistance: 24,
+  mobileScrollSupport: true,
+  clickEventForward: true,
+  useMouseEvents: true,
+} satisfies Partial<PageFlipSettings>;
+
+type DeckControls = { next: () => void; prev: () => void };
+
+/** Hands the page elements to StPageFlip and takes them back on teardown. */
+function FlipDeck({
+  book,
+  controls,
+  onIndexChange,
+  onInteract,
+}: {
+  book: SampleBook;
+  controls: React.RefObject<DeckControls | null>;
+  onIndexChange: (index: number) => void;
+  onInteract: () => void;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  const shelf = useRef<HTMLDivElement>(null);
+  const handlers = useRef({ onIndexChange, onInteract });
+  const [reduceMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+
+  useEffect(() => {
+    handlers.current = { onIndexChange, onInteract };
+  });
+
+  useEffect(() => {
+    const mount = host.current;
+    const source = shelf.current;
+    if (!mount || !source) return;
+
+    const pages = Array.from(
+      source.querySelectorAll<HTMLElement>("[data-flip-page]"),
+    );
+    if (pages.length === 0) return;
+
+    /* destroy() removes the element it was given, so StPageFlip gets a plain
+       div of its own instead of one React is holding a ref to. */
+    const block = document.createElement("div");
+    mount.appendChild(block);
+
+    const flip = new PageFlip(block, {
+      ...FLIP_SETTINGS,
+      /* Reduced motion: no corner peek, no flip on click. The pointer is also
+         sealed off in CSS below, so only the arrow buttons turn pages — and
+         they jump instead of animating. */
+      showPageCorners: !reduceMotion,
+      disableFlipByClick: reduceMotion,
+      flippingTime: reduceMotion ? 1 : FLIP_SETTINGS.flippingTime,
+    });
+
+    flip.on("flip", (event) => handlers.current.onIndexChange(event.data));
+    flip.on("changeState", (event) => {
+      if (event.data !== "read") handlers.current.onInteract();
+    });
+
+    flip.loadFromHTML(pages);
+
+    /* Building its landscape spread, StPageFlip marks the cover — and, on an
+       odd page count, the last page — "hard", which turns them into stiff
+       board instead of paper. Portrait never uses that spread, so put every
+       page back to soft and the whole book bends the same way. */
+    for (let position = 0; position < flip.getPageCount(); position += 1) {
+      const page = flip.getPage(position);
+      page.setDensity("soft");
+      page.setDrawingDensity("soft");
+    }
+
+    controls.current = reduceMotion
+      ? {
+          next: () => flip.turnToNextPage(),
+          prev: () => flip.turnToPrevPage(),
+        }
+      : { next: () => flip.flipNext(), prev: () => flip.flipPrev() };
+
+    return () => {
+      controls.current = null;
+      flip.destroy();
+
+      /* StPageFlip starts a requestAnimationFrame loop and never calls
+         cancelAnimationFrame, so a destroyed instance would keep drawing
+         detached nodes for the life of the tab. Emptying the page collection
+         releases the DOM and blanking the frame callback stops the work. */
+      flip.getPageCollection().destroy();
+      flip.getRender().render = () => {};
+
+      block.remove();
+
+      /* The pages were moved into StPageFlip's DOM and detached with it. Give
+         them back so React unmounts the tree it thinks it still owns. */
+      for (const page of pages) {
+        page.removeAttribute("style");
+        page.className = "";
+        source.appendChild(page);
+      }
+    };
+  }, [book, controls, reduceMotion]);
+
+  return (
+    <div className="relative w-full">
+      {/* Where the pages are rendered before StPageFlip moves them out. Kept
+          transparent rather than display:none so the images still load. */}
+      <div
+        ref={shelf}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden opacity-0"
+      >
+        {book.pages.map((page, position) => (
+          <div key={position} data-flip-page="" data-density="soft">
+            <PageCard page={page} book={book} fill />
+          </div>
+        ))}
+      </div>
+
+      <div
+        ref={host}
+        className={reduceMotion ? "pointer-events-none" : "cursor-grab"}
+      />
+    </div>
+  );
+}
 
 function BookFlip({
   book,
   interactive,
+  live,
   onInteract,
 }: {
   book: SampleBook;
+  /** This is the slide the carousel is showing. */
   interactive: boolean;
+  /** Autoplay is held, so the deck is worth building and the reader can use it. */
+  live: boolean;
   onInteract: () => void;
 }) {
   const [index, setIndex] = useState(0);
-  const [turn, setTurn] = useState<Turn | null>(null);
-  /* Mirrors turn so the animation loop and pointer handlers read the live value
-     instead of whatever the closure captured when they were created. */
-  const turnRef = useRef<Turn | null>(null);
-  const frame = useRef<number | null>(null);
-  const watchdog = useRef<number | null>(null);
-  const drag = useRef<{
-    startX: number;
-    width: number;
-    direction: 1 | -1;
-    moved: boolean;
-  } | null>(null);
-  const pointerKind = useRef<string>("mouse");
+  const controls = useRef<DeckControls | null>(null);
   const total = book.pages.length;
 
   // Coming back to a book should feel like picking it up again, not resuming.
   useEffect(() => {
-    if (interactive) return;
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    frame.current = null;
-    if (watchdog.current !== null) clearTimeout(watchdog.current);
-    watchdog.current = null;
-    turnRef.current = null;
-    drag.current = null;
-    setIndex(0);
-    setTurn(null);
-  }, [interactive]);
-
-  useEffect(
-    () => () => {
-      if (frame.current !== null) cancelAnimationFrame(frame.current);
-      if (watchdog.current !== null) clearTimeout(watchdog.current);
-    },
-    [],
-  );
-
-  function destination(direction: 1 | -1) {
-    const to = index + direction;
-    return to >= 0 && to < total ? to : null;
-  }
-
-  function edgeAt(clientX: number, rect: DOMRect): 1 | -1 | 0 {
-    const ratio = (clientX - rect.left) / rect.width;
-    if (ratio > 0.6) return 1;
-    if (ratio < 0.32) return -1;
-    return 0;
-  }
-
-  function write(next: Turn | null) {
-    turnRef.current = next;
-    setTurn(next);
-  }
-
-  function stopLoop() {
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    frame.current = null;
-    if (watchdog.current !== null) clearTimeout(watchdog.current);
-    watchdog.current = null;
-  }
-
-  /* The leaf is interpolated by hand rather than handed to a CSS transition.
-     A transform applied on the frame the leaf mounts produces no transition at
-     all, and a missed transitionend would strand the page mid-turn forever. */
-  function drive(
-    from: Turn,
-    target: number,
-    durationMs: number,
-    done?: () => void,
-  ) {
-    stopLoop();
-    const start = performance.now();
-    const origin = from.progress;
-    write({ ...from, target });
-
-    if (Math.abs(target - origin) < 0.001) {
-      write({ ...from, progress: target, target });
-      done?.();
-      return;
-    }
-
-    const finish = () => {
-      stopLoop();
-      const current = turnRef.current;
-      if (current) write({ ...current, progress: target, target });
-      done?.();
-    };
-
-    const step = (now: number) => {
-      const elapsed = Math.min((now - start) / durationMs, 1);
-      const current = turnRef.current;
-      if (!current) {
-        frame.current = null;
-        return;
-      }
-
-      if (elapsed >= 1) {
-        finish();
-        return;
-      }
-
-      const eased = 1 - Math.pow(1 - elapsed, 3);
-      write({ ...current, progress: origin + (target - origin) * eased });
-      frame.current = requestAnimationFrame(step);
-    };
-
-    frame.current = requestAnimationFrame(step);
-    // Frames stop in background tabs, and a page stranded mid-turn would block
-    // every later turn, so the outcome never depends on the loop running.
-    watchdog.current = window.setTimeout(finish, durationMs + 120);
-  }
-
-  /** Progress to start from, so a lifted corner is never dropped first. */
-  function carriedProgress(direction: 1 | -1) {
-    const current = turnRef.current;
-    return current && current.direction === direction ? current.progress : 0;
-  }
-
-  function beginPeek(direction: 1 | -1) {
-    const to = destination(direction);
-    if (to === null) return;
-    drive(
-      {
-        to,
-        direction,
-        progress: carriedProgress(direction),
-        phase: "peek",
-        target: PEEK,
-        completing: false,
-      },
-      PEEK,
-      200,
-    );
-  }
-
-  function releasePeek() {
-    const current = turnRef.current;
-    if (!current || current.phase !== "peek") return;
-    drive(current, 0, 180, () => write(null));
-  }
-
-  function complete(direction: 1 | -1, durationMs: number) {
-    const to = destination(direction);
-    if (to === null) return;
-    onInteract();
-
-    drive(
-      {
-        to,
-        direction,
-        progress: carriedProgress(direction),
-        phase: "settle",
-        target: 1,
-        completing: true,
-      },
-      1,
-      durationMs,
-      () => {
-        setIndex(to);
-        write(null);
-      },
-    );
-  }
-
-  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-
-    if (drag.current) {
-      const { startX, width, direction } = drag.current;
-      const travelled =
-        direction === 1 ? startX - event.clientX : event.clientX - startX;
-      if (Math.abs(event.clientX - startX) > 6) drag.current.moved = true;
-
-      const progress = Math.min(Math.max(travelled / (width * 0.8), 0), 1);
-      const current = turnRef.current;
-      if (current) write({ ...current, progress, target: progress });
-      return;
-    }
-
-    if (!interactive) return;
-    if (event.pointerType === "touch") return;
-    if (turn?.completing) return;
-
-    const edge = edgeAt(event.clientX, rect);
-
-    if (edge === 0 || destination(edge) === null) {
-      releasePeek();
-      return;
-    }
-
-    // Already lifting this edge, so leave the animation alone.
-    if (turn?.phase === "peek" && turn.direction === edge && turn.target === PEEK) {
-      return;
-    }
-    beginPeek(edge);
-  }
-
-  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    pointerKind.current = event.pointerType;
-    if (!interactive || turn?.completing) return;
-    // Touch keeps its native meaning so the carousel can still be swiped.
-    if (event.pointerType === "touch") return;
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const direction = edgeAt(event.clientX, rect) === -1 ? -1 : 1;
-    const to = destination(direction);
-    if (to === null) return;
-
-    event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = {
-      startX: event.clientX,
-      width: rect.width,
-      direction,
-      moved: false,
-    };
-
-    stopLoop();
-    const progress = carriedProgress(direction);
-    write({
-      to,
-      direction,
-      progress,
-      phase: "drag",
-      target: progress,
-      completing: false,
-    });
-  }
-
-  function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
-    const gesture = drag.current;
-    if (!gesture) return;
-    drag.current = null;
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-
-    const current = turnRef.current;
-    const progress = current?.progress ?? 0;
-
-    // A press that never moved is a click, and clicking turns the page.
-    if (!gesture.moved) {
-      complete(gesture.direction, 560);
-      return;
-    }
-
-    if (progress > COMMIT_AT) {
-      complete(gesture.direction, Math.round(240 + (1 - progress) * 260));
-      return;
-    }
-
-    if (current) {
-      drive({ ...current, phase: "settle" }, 0, 320, () => write(null));
-    }
-  }
-
-  function handleClick(event: React.MouseEvent<HTMLDivElement>) {
-    if (pointerKind.current !== "touch" || !interactive) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    complete(edgeAt(event.clientX, rect) === -1 ? -1 : 1, 560);
-  }
-
-  const beneath = turn ? turn.to : index;
-  const angle = turn
-    ? (turn.direction === 1 ? -180 : 180) * turn.progress
-    : 0;
-  const shade = turn ? Math.sin(turn.progress * Math.PI) * 0.5 : 0;
-  /* Strongest just after the lift and gone by the time the leaf lies flat, which
-     is what sells the corner as being held off the page. */
-  const lift = turn ? Math.min(turn.progress * 12, 1) * (1 - turn.progress) : 0;
-  /* A touch of roll on top of the swing, so the free corner rises further than
-     the rest of the sheet instead of the page pivoting like a door. */
-  const roll = turn ? (turn.direction === 1 ? -1 : 1) * 2.6 * lift : 0;
+    if (!live) setIndex(0);
+  }, [live]);
 
   return (
     <figure className="flex flex-col items-center">
       <div
-        className="relative w-full [perspective:1800px]"
+        className="relative w-full"
         role="group"
         aria-roledescription="book preview"
         aria-label={`${book.title}, page ${index + 1} of ${total}`}
-        onPointerMove={handlePointerMove}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onPointerLeave={releasePeek}
-        onClick={handleClick}
-        style={{
-          cursor:
-            !interactive || !turn
-              ? undefined
-              : turn.phase === "drag"
-                ? "grabbing"
-                : "grab",
-        }}
       >
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-4 bottom-0 h-8 translate-y-3 rounded-[50%] bg-foreground/20 blur-lg"
         />
 
-        <PageCard
-          page={book.pages[beneath]}
-          book={book}
-          priority={interactive}
-        />
-
-        {turn === null ? null : (
-          <div
-            className="absolute inset-0 [backface-visibility:hidden]"
-            style={{
-              transform: `rotateY(${angle}deg) rotateZ(${roll.toFixed(2)}deg)`,
-              transformOrigin:
-                turn.direction === 1 ? "left center" : "right center",
-              boxShadow: `${turn.direction === 1 ? "-" : ""}${(
-                lift * 26
-              ).toFixed(1)}px 0 ${(lift * 34).toFixed(
-                1,
-              )}px rgba(0,0,0,${(lift * 0.32).toFixed(3)})`,
-            }}
-          >
-            <PageCard page={book.pages[index]} book={book} />
-            <div
-              aria-hidden="true"
-              className={`pointer-events-none absolute inset-0 rounded-2xl ${
-                turn.direction === 1
-                  ? "bg-linear-to-l from-black to-transparent"
-                  : "bg-linear-to-r from-black to-transparent"
-              }`}
-              style={{ opacity: shade }}
-            />
-          </div>
+        {live ? (
+          <FlipDeck
+            key={book.id}
+            book={book}
+            controls={controls}
+            onIndexChange={setIndex}
+            onInteract={onInteract}
+          />
+        ) : (
+          <PageCard
+            page={book.pages[0]}
+            book={book}
+            priority={interactive}
+          />
         )}
       </div>
 
       <div className="mt-6 flex items-center gap-4">
         <CarouselButton
           label="Previous page"
-          disabled={!interactive || index === 0}
-          onClick={() => complete(-1, 560)}
+          disabled={!live || index === 0}
+          onClick={() => {
+            onInteract();
+            controls.current?.prev();
+          }}
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
         </CarouselButton>
@@ -691,8 +544,11 @@ function BookFlip({
         </span>
         <CarouselButton
           label="Next page"
-          disabled={!interactive || index === total - 1}
-          onClick={() => complete(1, 560)}
+          disabled={!live || index === total - 1}
+          onClick={() => {
+            onInteract();
+            controls.current?.next();
+          }}
         >
           <ChevronRight className="size-4" aria-hidden="true" />
         </CarouselButton>
@@ -734,13 +590,20 @@ function PageCard({
   page,
   book,
   priority = false,
+  fill = false,
 }: {
   page: SamplePage;
   book: SampleBook;
   priority?: boolean;
+  /** Inside the flip deck StPageFlip sizes the page, so follow it instead. */
+  fill?: boolean;
 }) {
   return (
-    <div className="relative aspect-2/3 w-full select-none overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+    <div
+      className={`relative ${
+        fill ? "h-full w-full" : "aspect-2/3 w-full"
+      } select-none overflow-hidden rounded-2xl border border-border bg-background shadow-2xl`}
+    >
       <PageView page={page} book={book} priority={priority} />
       <div
         aria-hidden="true"
@@ -754,8 +617,29 @@ function PageCard({
    Putting real headings here would inject the sample copy into the page
    outline that screen readers and search engines walk. */
 
-const PROSE =
-  "text-[0.575rem] leading-[1.68] text-foreground/80 text-justify hyphens-auto";
+const PROSE_BASE = "text-[0.575rem] leading-[1.68] text-foreground/80";
+
+/** Justified and hyphenated like print, or ragged right like a designed PDF. */
+function prose(book: SampleBook) {
+  return book.design.align === "justify"
+    ? `${PROSE_BASE} text-justify hyphens-auto`
+    : `${PROSE_BASE} text-left`;
+}
+
+/* Print indents a continuation paragraph; a ragged-right layout separates them
+   with space instead. Mixing the two is what makes a page look unset. */
+function paragraphFlow(book: SampleBook) {
+  return book.design.align === "justify" ? "[&>p+p]:indent-4" : "space-y-2";
+}
+
+const DROP_CAP =
+  "first-letter:float-left first-letter:mr-[0.1em] first-letter:text-[1.85rem] first-letter:font-semibold first-letter:leading-[0.8]";
+
+/** "1 · Name the real work" → the figure and the title, for numeral openers. */
+function splitNumeral(text: string) {
+  const match = /^(\d+)\s*[·.:—-]\s*(.+)$/.exec(text.trim());
+  return match ? { numeral: match[1], rest: match[2] } : null;
+}
 
 /** White type on a pale tint is unreadable — treat light covers as paper pages. */
 function isLightTint(hex: string) {
@@ -788,23 +672,165 @@ function Sheet({
   );
 }
 
-function RunningHead({
-  children,
-  accent,
-}: {
-  children: React.ReactNode;
-  accent?: string;
-}) {
+function RunningHead({ book }: { book: SampleBook }) {
+  if (book.design.runningHead === "none") return null;
+
+  // A workbook carries a rule rather than repeating its own title at you.
+  if (book.design.runningHead === "rule") {
+    return (
+      <span
+        aria-hidden="true"
+        className="block h-0.5 w-8 rounded-full"
+        style={{ backgroundColor: book.accent }}
+      />
+    );
+  }
+
   return (
     <p
       className="border-b pb-2 text-center text-[0.44rem] uppercase tracking-[0.26em]"
       style={{
-        color: accent ? `${accent}99` : undefined,
-        borderColor: accent ? `${accent}26` : undefined,
+        color: `${book.accent}99`,
+        borderColor: `${book.accent}26`,
       }}
     >
-      {children}
+      {book.runningHead}
     </p>
+  );
+}
+
+/** Space under the running head — none when the book does not print one. */
+function headGap(book: SampleBook) {
+  return book.design.runningHead === "none" ? "" : "mt-5";
+}
+
+/** Readable ink for text sitting on a solid accent band. */
+function onAccent(book: SampleBook) {
+  return isLightTint(book.accent) ? "text-foreground" : "text-white";
+}
+
+/** The chapter opening — the single biggest tell of who typeset a book. */
+function ChapterOpener({
+  book,
+  number,
+  heading,
+}: {
+  book: SampleBook;
+  number: string;
+  heading: string;
+}) {
+  if (book.design.chapterOpener === "block") {
+    return (
+      <div
+        className={`-mx-7 px-7 pb-5 pt-4 ${onAccent(book)}`}
+        style={{ backgroundColor: book.accent }}
+      >
+        <p className="text-[0.44rem] font-bold uppercase tracking-[0.26em] opacity-75">
+          {number}
+        </p>
+        <p className="mt-2 text-[1.02rem] font-extrabold leading-[1.15] tracking-tight">
+          {heading}
+        </p>
+      </div>
+    );
+  }
+
+  if (book.design.chapterOpener === "numeral") {
+    const figure = /^\d+$/.test(number.trim())
+      ? number.trim()
+      : (splitNumeral(number)?.numeral ?? null);
+
+    return (
+      <div>
+        {figure ? (
+          <p
+            className="font-display text-[2.8rem] font-extrabold leading-[0.85] tabular-nums"
+            style={{ color: book.accent }}
+          >
+            {figure}
+          </p>
+        ) : (
+          <p
+            className="text-[0.62rem] font-bold uppercase tracking-[0.2em]"
+            style={{ color: book.accent }}
+          >
+            {number}
+          </p>
+        )}
+        <p className="mt-3 text-[1.02rem] font-semibold leading-[1.2] tracking-tight">
+          {heading}
+        </p>
+        <span
+          aria-hidden="true"
+          className="mt-4 block h-0.5 w-10 rounded-full"
+          style={{ backgroundColor: book.accent }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-center">
+      <p
+        className="text-[0.46rem] font-semibold uppercase tracking-[0.3em]"
+        style={{ color: book.accent }}
+      >
+        {number}
+      </p>
+      <p className="mt-3.5 text-[1.02rem] font-semibold leading-[1.2] tracking-tight">
+        {heading}
+      </p>
+      <span
+        aria-hidden="true"
+        className="mx-auto mt-4 block h-px w-7"
+        style={{ backgroundColor: `${book.accent}59` }}
+      />
+    </div>
+  );
+}
+
+/** The same identity applied to the smaller headings inside a book. */
+function SectionHeading({
+  book,
+  text,
+  size = "text-[0.72rem]",
+}: {
+  book: SampleBook;
+  text: string;
+  size?: string;
+}) {
+  if (book.design.chapterOpener === "block") {
+    return (
+      <p
+        className={`-mx-2 rounded px-2 py-1.5 ${size} font-bold leading-snug tracking-tight ${onAccent(book)}`}
+        style={{ backgroundColor: book.accent }}
+      >
+        {text}
+      </p>
+    );
+  }
+
+  if (book.design.chapterOpener === "numeral") {
+    const split = splitNumeral(text);
+    if (split) {
+      return (
+        <p
+          className={`flex items-baseline gap-2 ${size} font-semibold leading-snug tracking-tight`}
+        >
+          <span
+            className="font-display text-[1.6rem] font-extrabold leading-none tabular-nums"
+            style={{ color: book.accent }}
+          >
+            {split.numeral}
+          </span>
+          <span>{split.rest}</span>
+        </p>
+      );
+    }
+  }
+
+  return (
+    <p className={`${size} font-semibold leading-snug tracking-tight`}>{text}</p>
   );
 }
 
@@ -909,32 +935,26 @@ function PageView({
 
   if (page.kind === "chapter") {
     return (
-      <Sheet book={book} className="px-7 pb-5 pt-12">
-        <div className="text-center">
-          <p
-            className="text-[0.46rem] font-semibold uppercase tracking-[0.3em]"
-            style={{ color: book.accent }}
-          >
-            {page.number}
-          </p>
-          <p className="mt-3.5 text-[1.02rem] font-semibold leading-[1.2] tracking-tight">
-            {page.heading}
-          </p>
-          <span
-            aria-hidden="true"
-            className="mx-auto mt-4 block h-px w-7"
-            style={{ backgroundColor: `${book.accent}59` }}
-          />
-        </div>
+      <Sheet
+        book={book}
+        className={
+          book.design.chapterOpener === "block"
+            ? "px-7 pb-5 pt-7"
+            : "px-7 pb-5 pt-12"
+        }
+      >
+        <ChapterOpener
+          book={book}
+          number={page.number}
+          heading={page.heading}
+        />
 
-        <div className={`mt-6 flex-1 ${PROSE} [&>p+p]:indent-4`}>
+        <div className={`mt-6 flex-1 ${prose(book)} ${paragraphFlow(book)}`}>
           {page.paragraphs.map((paragraph, position) => (
             <p
               key={paragraph.slice(0, 24)}
               className={
-                position === 0
-                  ? "first-letter:float-left first-letter:mr-[0.1em] first-letter:text-[1.85rem] first-letter:font-semibold first-letter:leading-[0.8]"
-                  : undefined
+                position === 0 && book.design.dropCap ? DROP_CAP : undefined
               }
             >
               {paragraph}
@@ -950,15 +970,15 @@ function PageView({
   if (page.kind === "body") {
     return (
       <Sheet book={book} className="px-7 pb-5 pt-6">
-        <RunningHead accent={book.accent}>{book.runningHead}</RunningHead>
+        <RunningHead book={book} />
 
-        <div className="mt-5 flex-1">
+        <div className={`${headGap(book)} flex-1`}>
           {page.subheading ? (
-            <p className="mb-2.5 text-[0.72rem] font-semibold leading-snug tracking-tight">
-              {page.subheading}
-            </p>
+            <div className="mb-2.5">
+              <SectionHeading book={book} text={page.subheading} />
+            </div>
           ) : null}
-          <div className={`${PROSE} [&>p+p]:indent-4`}>
+          <div className={`${prose(book)} ${paragraphFlow(book)}`}>
             {page.paragraphs.map((paragraph) => (
               <p key={paragraph.slice(0, 24)}>{paragraph}</p>
             ))}
@@ -973,12 +993,14 @@ function PageView({
   if (page.kind === "table") {
     return (
       <Sheet book={book} className="px-6 pb-5 pt-6">
-        <RunningHead accent={book.accent}>{book.runningHead}</RunningHead>
+        <RunningHead book={book} />
 
-        <div className="mt-5 flex-1">
-          <p className="text-[0.78rem] font-semibold leading-snug tracking-tight">
-            {page.heading}
-          </p>
+        <div className={`${headGap(book)} flex-1`}>
+          <SectionHeading
+            book={book}
+            text={page.heading}
+            size="text-[0.78rem]"
+          />
           <p className="mt-1.5 text-[0.53rem] leading-[1.6] text-foreground/60">
             {page.intro}
           </p>
@@ -1085,7 +1107,7 @@ function PageView({
           className="mt-4 block h-px w-7"
           style={{ backgroundColor: `${book.accent}59` }}
         />
-        <p className={`mt-4 ${PROSE}`}>{page.support}</p>
+        <p className={`mt-4 ${prose(book)}`}>{page.support}</p>
         <Folio>{page.folio}</Folio>
       </Sheet>
     );
@@ -1094,13 +1116,15 @@ function PageView({
   if (page.kind === "steps") {
     return (
       <Sheet book={book} className="px-7 pb-5 pt-6">
-        <RunningHead accent={book.accent}>{book.runningHead}</RunningHead>
+        <RunningHead book={book} />
 
-        <div className="mt-5 flex-1">
-          <p className="text-[0.8rem] font-semibold leading-snug tracking-tight">
-            {page.heading}
-          </p>
-          <p className={`mt-2 ${PROSE}`}>{page.intro}</p>
+        <div className={`${headGap(book)} flex-1`}>
+          <SectionHeading
+            book={book}
+            text={page.heading}
+            size="text-[0.8rem]"
+          />
+          <p className={`mt-2 ${prose(book)}`}>{page.intro}</p>
 
           <ol className="mt-5">
             {page.steps.map((step, position) => (

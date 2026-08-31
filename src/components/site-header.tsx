@@ -30,7 +30,7 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <Show when="signed-out">
-            <SignInButton mode="redirect" forceRedirectUrl="/create">
+            <SignInButton mode="redirect" forceRedirectUrl="/dashboard">
               <button
                 type="button"
                 className="hidden cursor-pointer text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground sm:inline"
@@ -39,17 +39,17 @@ export function SiteHeader() {
               </button>
             </SignInButton>
             <Link
-              href="/#founding-offer"
+              href="/signup"
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border-2 border-foreground bg-primary px-4 py-2 text-sm font-extrabold text-on-primary shadow-sm transition-all duration-150 hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
             >
-              Join the waitlist
+              Start writing
               <ArrowRight className="size-3.5" aria-hidden="true" />
             </Link>
           </Show>
 
           <Show when="signed-in">
             <Link
-              href="/create"
+              href="/dashboard"
               className="hidden text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground sm:inline"
             >
               Studio
@@ -94,7 +94,7 @@ export function SiteHeader() {
               </Show>
               <Show when="signed-in">
                 <Link
-                  href="/create"
+                  href="/dashboard"
                   className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground"
                 >
                   Studio

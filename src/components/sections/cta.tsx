@@ -1,5 +1,6 @@
-import { WaitlistForm } from "@/components/waitlist-form";
-import { founder, launch } from "@/lib/site";
+import { ArrowRight } from "lucide-react";
+import { ButtonLink } from "@/components/ui/button";
+import { founder } from "@/lib/site";
 import { getWaitlistStats } from "@/lib/waitlist";
 
 export async function Cta() {
@@ -16,13 +17,19 @@ export async function Cta() {
           Your knowledge is worth more than you think
         </h2>
         <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-          We open the doors on {launch.label}. Join the waitlist now and keep $
-          {founder.monthlyPrice}/mo instead of ${founder.launchPrice} when you
-          subscribe.
+          Founding members pay ${founder.monthlyPrice}/mo for as long as they
+          stay — the price goes to ${founder.launchPrice} once the first{" "}
+          {founder.spots} spots are gone.
         </p>
 
-        <div className="mx-auto mt-9 max-w-lg">
-          <WaitlistForm />
+        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <ButtonLink href="/signup" size="lg">
+            Start your first book
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </ButtonLink>
+          <ButtonLink href="/pricing" variant="secondary" size="lg">
+            See pricing
+          </ButtonLink>
         </div>
 
         <p className="mt-6 text-sm font-semibold text-muted-foreground">

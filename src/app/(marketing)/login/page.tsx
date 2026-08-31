@@ -22,7 +22,7 @@ export default function LoginPage() {
         <div className="mt-8 w-full">
           <SignIn
             routing="hash"
-            forceRedirectUrl="/create"
+            forceRedirectUrl="/dashboard"
             signUpUrl="/signup"
             appearance={{
               elements: {

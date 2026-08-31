@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { CheckCircle2, Mail } from "lucide-react";
-import { Countdown } from "@/components/countdown";
 import { ReferralLink } from "@/components/referral-link";
 import { getClientIp } from "@/lib/client-ip";
 import { checkRateLimit, hashIp } from "@/lib/rate-limit";
-import { founder, launch, site } from "@/lib/site";
+import { ButtonLink } from "@/components/ui/button";
+import { founder, site } from "@/lib/site";
 import { confirmWaitlist, getStanding } from "@/lib/waitlist";
 
 export const metadata: Metadata = {
@@ -43,7 +43,7 @@ export default async function WelcomePage({
           href="/"
           className="mt-8 inline-flex rounded-full bg-primary px-7 py-3.5 font-bold text-on-primary transition-colors hover:bg-primary-strong"
         >
-          Back to the waitlist
+          Back to the homepage
         </Link>
       </section>
     );
@@ -62,14 +62,14 @@ export default async function WelcomePage({
           We could not find that spot
         </h1>
         <p className="mx-auto mt-4 max-w-md text-muted-foreground">
-          The link may be incomplete. Join again with the same email address —
-          we will email you a fresh confirmation link.
+          The link may be incomplete. The studio is open — create your account
+          with the same email address to start writing.
         </p>
         <Link
           href="/"
           className="mt-8 inline-flex rounded-full bg-primary px-7 py-3.5 font-bold text-on-primary transition-colors hover:bg-primary-strong"
         >
-          Back to the waitlist
+          Back to the homepage
         </Link>
       </section>
     );
@@ -97,8 +97,8 @@ export default async function WelcomePage({
           Your founding spot is reserved
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-          Your spot is reserved. On {launch.label} we email you an access link
-          with ${founder.monthlyPrice}/mo locked in.
+          The studio is open. Create your account with this email address and
+          your ${founder.monthlyPrice}/mo founding rate comes with it.
           {!standing.confirmed ? (
             <>
               {" "}
@@ -153,7 +153,9 @@ export default async function WelcomePage({
         </div>
 
         <div className="mt-12">
-          <Countdown />
+          <ButtonLink href="/signup" size="lg">
+            Create your account
+          </ButtonLink>
         </div>
 
         <p className="mt-10 inline-flex items-center gap-2 text-sm text-muted-foreground">

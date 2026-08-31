@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { PricingTable } from "@/components/sections/pricing-table";
 import { Faq } from "@/components/sections/faq";
 import { faqs, formats } from "@/lib/content";
-import { founder, launch, site } from "@/lib/site";
+import { founder, site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Pricing — credits, plans and what a book costs",
@@ -48,16 +48,15 @@ export default function PricingPage() {
             Go Pro from $29/mo to publish
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            These are the prices from {launch.label}. A Pro plan is required to
-            create, export and sell — including commercial rights and the
-            coloring book studio.
+            A Pro plan is required to create, export and sell — including
+            commercial rights and the coloring book studio.
           </p>
 
           <Link
             href="/#founding-offer"
             className="mt-8 inline-flex items-center gap-2 rounded-full border-2 border-primary bg-primary-soft px-5 py-3 text-sm font-bold text-primary-strong transition-colors hover:bg-primary hover:text-on-primary"
           >
-            Join before launch and pay ${founder.monthlyPrice}/mo instead
+            Founding members pay ${founder.monthlyPrice}/mo while spots last
             <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </div>

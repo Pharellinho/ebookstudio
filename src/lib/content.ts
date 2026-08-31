@@ -107,6 +107,22 @@ export const formats: EbookFormat[] = [
       "Scene-level pacing across the whole book",
     ],
   },
+  {
+    slug: "coloring-book",
+    name: "Coloring Book",
+    pages: "20–40",
+    chapters: "12–16",
+    credits: 40,
+    regenCredits: 20,
+    summary:
+      "Printable black-and-white line-art pages built around one theme.",
+    audience: "Parents, teachers and creators selling activity books.",
+    highlights: [
+      "One scene per page with clear outlines",
+      "Age-appropriate complexity",
+      "Ready for KDP coloring interiors",
+    ],
+  },
 ];
 
 export const steps = [
@@ -179,22 +195,22 @@ export const proFeatures = [
   "Priority support",
 ];
 
-export const prelaunchFaqs = [
+export const homeFaqs = [
   {
-    q: "What happens when I join the waitlist?",
-    a: "You get an email confirming your position in the queue and a personal invite link. On 15 August we email you an access link, and your founding price is attached to that account.",
+    q: "What do I actually get?",
+    a: "A full manuscript you can edit chapter by chapter, a designed cover, and the export files: a print-ready PDF sized for Amazon KDP, an EPUB for Kindle and Apple Books, and a DOCX if you want to finish the edit in Word.",
   },
   {
-    q: "Do I pay anything now?",
-    a: "No. The waitlist only needs your email. You subscribe when we open access on 15 August, and founding members keep the $19/mo rate.",
+    q: "What is a founding spot?",
+    a: "The first 100 members pay $19/mo instead of $29, get 500 credits a month instead of 300, and 300 bonus credits on their first month. Once the 100 spots are taken, the public price applies to everyone after that.",
   },
   {
     q: "How long does the founding price last?",
     a: "It stays at $19/mo for as long as your subscription runs without interruption. If you cancel and come back later, the public price applies.",
   },
   {
-    q: "Why is my position in the queue worth anything?",
-    a: "We let people in gradually so generation stays fast on day one. Earlier positions get access sooner, and every friend who joins with your link moves you up ten places.",
+    q: "Is there a free plan?",
+    a: "No. Creating, exporting and selling books requires a paid plan, which is what pays for the generation itself. You choose your plan when you create your account.",
   },
   {
     q: "Will I own the ebooks I create?",
@@ -202,7 +218,7 @@ export const prelaunchFaqs = [
   },
   {
     q: "What if I change my mind?",
-    a: "Unsubscribe from any email and your entry is deleted. We only use your address for launch news and nothing else.",
+    a: "You can cancel at any time and keep every book and file you have already exported. Write to us and we close the account and delete your data.",
   },
 ];
 
@@ -229,7 +245,7 @@ export const faqs = [
   },
   {
     q: "Can I try it before paying?",
-    a: "There is no free plan at launch. Join the waitlist to lock the founding price, then subscribe when access opens to create, export and sell your books.",
+    a: "There is no free plan. A paid plan is required to create, export and sell your books. Founding members lock $19/mo for as long as they stay subscribed, while the first 100 spots last.",
   },
 ];
 

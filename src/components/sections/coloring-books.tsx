@@ -38,8 +38,8 @@ export function ColoringBooks() {
             ))}
           </ul>
 
-          <ButtonLink href="/#founding-offer" size="lg" className="mt-8">
-            Join the waitlist
+          <ButtonLink href="/signup" size="lg" className="mt-8">
+            Start a coloring book
           </ButtonLink>
         </div>
 

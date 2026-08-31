@@ -1,13 +1,12 @@
-import { Check, Gift, Lock, Users } from "lucide-react";
-import { WaitlistForm } from "@/components/waitlist-form";
-import { founder, launch } from "@/lib/site";
+import { ArrowRight, Check, Gift, Lock, Rocket } from "lucide-react";
+import { ButtonLink } from "@/components/ui/button";
+import { founder } from "@/lib/site";
 import { getWaitlistStats } from "@/lib/waitlist";
 
 const founderPerks = [
   `$${founder.monthlyPrice}/mo locked for as long as you stay subscribed`,
   `${founder.monthlyCredits} credits every month instead of ${founder.launchCredits}`,
-  `${founder.bonusCredits} bonus credits the day you get access`,
-  "Early access before public launch",
+  `${founder.bonusCredits} bonus credits on your first month`,
   "Commercial rights on everything you generate",
 ];
 
@@ -28,16 +27,16 @@ export async function FounderOffer() {
             The first {founder.spots} people pay less, forever
           </h2>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            On {launch.label} the public price starts at $
-            {founder.launchPrice}/mo. Everyone who joins before then keeps the
-            founding rate instead.
+            The public price is ${founder.launchPrice}/mo. The first{" "}
+            {founder.spots} members keep the founding rate instead, for as long
+            as they stay subscribed.
           </p>
         </div>
 
         <div className="mx-auto mt-14 grid max-w-4xl items-stretch gap-6 lg:grid-cols-2">
           <div className="rounded-3xl border border-border bg-background p-8">
             <p className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
-              At launch
+              Public price
             </p>
             <p className="mt-4 font-display text-4xl font-extrabold text-muted-foreground">
               ${founder.launchPrice}
@@ -51,7 +50,7 @@ export async function FounderOffer() {
                 "Standard monthly price",
                 `${founder.launchCredits} credits every month`,
                 "No bonus credits",
-                "Access when everyone else gets it",
+                "Price can change over time",
               ].map((item) => (
                 <li
                   key={item}
@@ -73,7 +72,7 @@ export async function FounderOffer() {
             </span>
 
             <p className="text-sm font-extrabold uppercase tracking-[0.14em]">
-              Join before {launch.label}
+              While spots last
             </p>
             <div className="mt-4 flex items-baseline gap-3">
               <p className="font-display text-5xl font-extrabold">
@@ -129,7 +128,10 @@ export async function FounderOffer() {
             </div>
 
             <div className="mt-7">
-              <WaitlistForm compact />
+              <ButtonLink href="/signup" size="lg" className="w-full">
+                Claim a founding spot
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </ButtonLink>
             </div>
           </div>
         </div>
@@ -137,9 +139,9 @@ export async function FounderOffer() {
         <div className="mx-auto mt-12 grid max-w-4xl gap-5 sm:grid-cols-3">
           {[
             {
-              icon: Users,
-              title: "Waitlist only",
-              body: "Leave your email today. You subscribe when access opens, at the founding rate.",
+              icon: Rocket,
+              title: "Open now",
+              body: "Create your account and start your first book today, at the founding rate.",
             },
             {
               icon: Lock,
@@ -149,7 +151,7 @@ export async function FounderOffer() {
             {
               icon: Gift,
               title: "Invite and earn",
-              body: `Every friend who joins adds ${founder.referralCredits} bonus credits and moves you up the queue.`,
+              body: `Every friend who subscribes adds ${founder.referralCredits} bonus credits to your account.`,
             },
           ].map((item) => (
             <div

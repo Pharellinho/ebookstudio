@@ -35,18 +35,11 @@ export const site = {
   name: "EbookStudio",
   domain,
   url: resolveSiteUrl(),
-  tagline: "Create once, get paid forever",
+  tagline: "Write it once. Get paid for years.",
   description:
-    "EbookStudio turns one idea into a full manuscript, a designed cover and store-ready PDF, EPUB and DOCX files. Join the waitlist before launch to lock the founding price.",
+    "EbookStudio turns one idea into a full manuscript, a designed cover and store-ready PDF, EPUB and DOCX files, with commercial rights included. Founding members lock $19/mo while spots last.",
   twitter: "@ebookstudioai",
   contactEmail: "ebook.studiai@gmail.com",
-} as const;
-
-export const launch = {
-  /** Public launch moment the countdown runs to. */
-  date: "2026-08-15T09:00:00+02:00",
-  /** Shown as the human-readable date across the page. */
-  label: "15 August 2026",
 } as const;
 
 export const founder = {

@@ -1,10 +1,10 @@
 import { Plus } from "lucide-react";
-import { faqs, prelaunchFaqs } from "@/lib/content";
+import { faqs, homeFaqs } from "@/lib/content";
 
 type FaqItem = { q: string; a: string };
 
 export function Faq({
-  items = prelaunchFaqs,
+  items = homeFaqs,
   title = "Questions? We have answers.",
 }: {
   items?: readonly FaqItem[];
@@ -44,7 +44,7 @@ export function Faq({
   );
 }
 
-export function faqStructuredData(items: readonly FaqItem[] = prelaunchFaqs) {
+export function faqStructuredData(items: readonly FaqItem[] = homeFaqs) {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",

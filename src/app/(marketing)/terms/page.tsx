@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
-import { founder, launch, site } from "@/lib/site";
+import { founder, site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Terms of service",
-  description: `The terms that apply when you use ${site.name}, including the waitlist, accounts, subscriptions and acceptable use.`,
+  description: `The terms that apply when you use ${site.name}, including accounts, subscriptions, the founding offer and acceptable use.`,
   alternates: { canonical: "/terms" },
 };
 
@@ -18,25 +18,25 @@ export default function TermsPage() {
           number: "1.",
           heading: "Acknowledgment and acceptance",
           body: [
-            `By using any ${site.name} services ("Services") — including this website, the waitlist, and the ebook studio after launch — you agree to be bound by these Terms of Service ("Terms"). The Services are operated under the name ${site.name} at ${site.domain}.`,
+            `By using any ${site.name} services ("Services") — including this website, the ebook studio and any waiting list we may run — you agree to be bound by these Terms of Service ("Terms"). The Services are operated under the name ${site.name} at ${site.domain}.`,
             "We may change these Terms at any time. Continued use of the Services after changes are posted means you accept the revised Terms. We encourage you to review this page regularly.",
-            "Your agreement with us becomes effective as soon as you start using the site (including joining the waitlist). Your remedy for dissatisfaction with the site or Services is to stop using them.",
+            "Your agreement with us becomes effective as soon as you start using the site or create an account. Your remedy for dissatisfaction with the site or Services is to stop using them.",
           ],
         },
         {
           number: "2.",
-          heading: "Waitlist (pre-launch)",
+          heading: "Founding offer",
           body: [
-            `Until ${launch.label}, the primary Service available is the founding waitlist. Joining requires an accurate email address. You may not use an email address that you do not control or that violates a third party's rights.`,
-            "We use your email to confirm your place in the queue, send launch and founding-offer updates, and (if you used a referral link) attribute referrals. Joining the waitlist does not create a paid subscription by itself.",
-            `Founding members who join before launch may lock the founding price of $${founder.monthlyPrice}/mo when they subscribe after access opens, subject to the offer terms shown on the site at the time of signup.`,
+            `The founding offer is limited to the first ${founder.spots} founding members. Once those spots are taken, the public price shown on our Pricing page applies to every new subscription.`,
+            "Where we run a waiting list, joining requires an accurate email address that you control. We use it to confirm your place, send product and founding-offer updates, and (if you used a referral link) attribute referrals. Joining a waiting list does not create a paid subscription by itself.",
+            `Founding members lock the founding price of $${founder.monthlyPrice}/mo for as long as their subscription stays active without interruption, subject to the offer terms shown on the site at the time of signup.`,
           ],
         },
         {
           number: "3.",
           heading: "Membership and accounts",
           body: [
-            "After launch, full use of the studio requires registration with an accurate email address. You may not use someone else's email or an address that violates third-party rights.",
+            "Full use of the studio requires registration with an accurate email address. You may not use someone else's email or an address that violates third-party rights.",
             "Email is our primary way to reach you (system updates, product news, account status and support). You are responsible for reading those messages. We are not responsible if you miss information because you ignored or filtered our emails.",
             "You must keep your login credentials confidential and are responsible for all activity under your account. Notify us promptly at the contact email below if you become aware of unauthorized access. We are not liable for unauthorized use of your account that results from your failure to safeguard credentials.",
             "If you sign up on behalf of an employer or organization, that entity is the account owner and you warrant that you have authority to bind them to these Terms.",
@@ -54,7 +54,7 @@ export default function TermsPage() {
           number: "5.",
           heading: "Payments, plans and refunds",
           body: [
-            `There is no free plan at launch. Creating, exporting and selling books requires a paid subscription (or other paid package we may offer). Public plans start from the prices shown on our Pricing page; founding waitlist members may receive the founding rate described on the site.`,
+            `There is no free plan. Creating, exporting and selling books requires a paid subscription (or other paid package we may offer). Public plans start from the prices shown on our Pricing page; founding members may receive the founding rate described on the site.`,
             "Subscriptions renew automatically each billing cycle until cancelled. One-time credit or add-on purchases, if offered, are billed when purchased.",
             "Because generation and hosting costs are incurred when you use the Service, we do not offer partial or full refunds on subscriptions or credit purchases, except where required by applicable law.",
             "We may change plan prices and terms. Changes will be posted on the site. Price changes for an active subscription typically apply from the next renewal, unless otherwise stated or required by law.",
@@ -113,7 +113,7 @@ export default function TermsPage() {
         {
           number: "13.",
           heading: "Notices",
-          body: `Notices to us must be sent by email to ${site.contactEmail}. Notices to you may be sent to the email on your waitlist or account, or shown on the site. Site-wide notices count as notice when posted or sent.`,
+          body: `Notices to us must be sent by email to ${site.contactEmail}. Notices to you may be sent to the email on your account, or shown on the site. Site-wide notices count as notice when posted or sent.`,
         },
         {
           number: "14.",
