@@ -5,6 +5,7 @@ import {
   chapterUserPrompt,
   outlineSystemPrompt,
   outlineUserPrompt,
+  MAX_OUTLINE_CHAPTERS,
   type BookOutline,
 } from "@/lib/generation/prompts";
 import { GENERATION_MODEL, getOpenAI } from "@/lib/generation/openai";
@@ -49,10 +50,13 @@ export async function generateOutline(input: {
   return {
     title: String(parsed.title).trim(),
     subtitle: String(parsed.subtitle ?? "").trim(),
-    chapters: parsed.chapters.map((chapter) => ({
-      title: String(chapter.title).trim(),
-      summary: String(chapter.summary).trim(),
-    })),
+    // A model that ignores the requested count must not turn into a bill.
+    chapters: parsed.chapters
+      .slice(0, MAX_OUTLINE_CHAPTERS)
+      .map((chapter) => ({
+        title: String(chapter.title).trim(),
+        summary: String(chapter.summary).trim(),
+      })),
   };
 }
 

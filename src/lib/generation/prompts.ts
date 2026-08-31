@@ -12,6 +12,11 @@ export type BookOutline = {
   chapters: OutlineChapter[];
 };
 
+/* One OpenAI call is billed per chapter, so the chapter count is the cost of a
+   book. The largest format asks for 20-30, and nothing legitimate goes past
+   this — whether it came from the model or from a request body. */
+export const MAX_OUTLINE_CHAPTERS = 40;
+
 export function getFormat(slug: string): EbookFormat | undefined {
   return formats.find((format) => format.slug === slug);
 }

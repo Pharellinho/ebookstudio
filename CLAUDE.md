@@ -73,29 +73,37 @@ not "an AI ebook generator". Current tagline: *Create once, get paid forever*.
 Any marketing copy you write must hold that line. Competitor reference is getebook.ai
 for UX only — never copy their visual identity.
 
-## State of the repo (as of 30 Aug 2026)
+## State of the repo (as of 31 Aug 2026)
 
-`main` is at `8b838b9`. Production still runs the **old marketing/waitlist structure**.
-There is a large uncommitted WIP (~32 files) introducing the route groups and the whole
-signed-in app. It typechecks clean but has **not** been build-verified or deployed.
+`main` is at `8b838b9`. Production still runs the **old marketing/waitlist structure**,
+so www.ebookstudioai.com does *not* show the new landing.
 
-Known issues in the WIP, in priority order:
+The former uncommitted WIP now lives on the branch **`landing-live`**, pushed to
+GitHub: the route groups, the signed-in app, the generation pipeline and the
+relaunched landing. It builds clean. Nothing is merged into `main` yet.
 
-1. `/api/books/[id]/generate` has no `export const maxDuration` — the SSE stream will
-   be cut off by Vercel before a book finishes. Works in dev, fails in production.
-2. Same route: a dead stream leaves the book stuck in status `writing`, and the
-   `already_generating` guard then returns 409 forever. No staleness recovery.
-3. Same route: `checkRateLimit` runs before the status check, so a stuck book burns
-   the user's 6 attempts/hour on 409s.
-4. `POST /api/books` accepts a client-supplied `outline` validated only by
-   `typeof === "object"`. A 500-chapter outline means 500 OpenAI calls in one request.
-5. `replaceOutlineChapters` deletes all chapters before reinserting — a retry
-   re-bills chapters that were already generated successfully.
-6. `scribe-flow.tsx` streams without an `AbortController`; navigating away strands
-   the book in `writing` (feeds issue 2).
+The six issues listed here previously are fixed on that branch:
 
-Dead code to remove before committing: `src/components/create-wizard.tsx` (393 lines,
-imported nowhere). Empty leftover dirs: `src/app/(marketing)/preview/`.
+1. `/api/books/[id]/generate` now sets `export const maxDuration = 300`, which lands
+   in `functions-config-manifest.json` and is what Vercel reads. **If a deploy is
+   rejected for exceeding the plan limit, lower this number** — 60 is always allowed.
+2. Same route: a book whose `updated_at` has not moved for 5 minutes is treated as
+   stalled rather than busy, so a dead stream no longer locks it behind a permanent
+   409. `touchBook` beats once per finished chapter to keep that check honest.
+3. Same route: `checkRateLimit` now runs *after* the ownership and status checks, so
+   a 409 never costs one of the 6 attempts per hour.
+4. `POST /api/books` validates the client-supplied outline with `parseOutline`:
+   bounded title, subtitle and summary lengths, and 1 to `MAX_OUTLINE_CHAPTERS`
+   chapters. `generateOutline` caps the model's own output at the same ceiling.
+5. `replaceOutlineChapters` is now `syncOutlineChapters`: chapters that already hold
+   finished text survive a retry, and the route replays them instead of buying the
+   same chapter from OpenAI twice.
+6. `scribe-flow.tsx` holds an `AbortController` and aborts on unmount, so leaving the
+   page ends the request instead of stranding the book in `writing`.
+
+Still open: `src/components/create-wizard.tsx` (393 lines, imported nowhere) is
+committed rather than deleted — it was never in git, so removing it unasked would
+have destroyed it. Empty leftover dir: `src/app/(marketing)/preview/`.
 
 ## Verifying work
 

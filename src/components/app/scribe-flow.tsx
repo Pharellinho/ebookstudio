@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -53,6 +53,7 @@ export function ScribeFlow() {
   const [subtitle, setSubtitle] = useState("");
 
   const [bookId, setBookId] = useState<string | null>(null);
+  const generation = useRef<AbortController | null>(null);
   const [liveChapters, setLiveChapters] = useState<LiveChapter[]>([]);
   const [activePosition, setActivePosition] = useState(0);
   const [writingLabel, setWritingLabel] = useState("");
@@ -61,6 +62,11 @@ export function ScribeFlow() {
     () => formats.filter((f) => f.slug !== "coloring-book"),
     [],
   );
+
+  /* Closing the tab or navigating away used to leave the server writing into a
+     connection nobody was reading, and the book sat in "writing" for good.
+     Aborting ends the request so the book can be picked up again. */
+  useEffect(() => () => generation.current?.abort(), []);
 
   const activeChapter = liveChapters[activePosition] ?? liveChapters[0];
   const finalTitle = showCustomTitle ? customTitle.trim() : selectedTitle;
@@ -219,9 +225,14 @@ export function ScribeFlow() {
       })),
     );
 
+    generation.current?.abort();
+    const controller = new AbortController();
+    generation.current = controller;
+
     try {
       const createRes = await fetch("/api/books", {
         method: "POST",
+        signal: controller.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           idea: idea.trim(),
@@ -247,6 +258,7 @@ export function ScribeFlow() {
 
       const generateRes = await fetch(`/api/books/${id}/generate`, {
         method: "POST",
+        signal: controller.signal,
       });
       if (!generateRes.ok || !generateRes.body) {
         const fail = (await generateRes.json().catch(() => null)) as {
@@ -341,6 +353,8 @@ export function ScribeFlow() {
         }
       }
     } catch (err) {
+      // We aborted on purpose — the reader has already left, so say nothing.
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setBusy(false);
       setError(err instanceof Error ? err.message : "Something went wrong");
       setStep("outline");

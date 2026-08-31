@@ -106,11 +106,54 @@ export async function updateBook(
   if (error) throw new Error(error.message);
 }
 
-export async function replaceOutlineChapters(
+/** Bumps updated_at so a generation in progress never looks abandoned. */
+export async function touchBook(bookId: string): Promise<void> {
+  const { error } = await admin()
+    .from("books")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", bookId);
+
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Lines the chapters table up with the outline. Chapters that already hold
+ * finished text are kept, so retrying a book that died halfway resumes instead
+ * of paying OpenAI a second time for work that was already delivered.
+ */
+export async function syncOutlineChapters(
   bookId: string,
   outline: BookOutline,
 ): Promise<ChapterRow[]> {
   const supabase = admin();
+  const existing = await listChapters(bookId);
+
+  const samePlan =
+    existing.length === outline.chapters.length &&
+    existing.every(
+      (chapter, index) =>
+        chapter.position === index &&
+        chapter.title === outline.chapters[index].title,
+    );
+
+  if (samePlan) {
+    const unfinished = existing.filter(
+      (chapter) => chapter.status !== "ready" || !chapter.body.trim(),
+    );
+    const unfinishedIds = new Set(unfinished.map((chapter) => chapter.id));
+
+    for (const chapter of unfinished) {
+      await updateChapter(chapter.id, { status: "pending", body: "" });
+    }
+
+    return existing.map((chapter) =>
+      unfinishedIds.has(chapter.id)
+        ? { ...chapter, status: "pending" as const, body: "" }
+        : chapter,
+    );
+  }
+
+  // The outline changed, so the old chapters no longer describe this book.
   await supabase.from("chapters").delete().eq("book_id", bookId);
 
   const rows = outline.chapters.map((chapter, index) => ({

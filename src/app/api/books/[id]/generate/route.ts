@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import {
   getBookForUser,
-  replaceOutlineChapters,
+  syncOutlineChapters,
+  touchBook,
   updateBook,
   updateChapter,
 } from "@/lib/books";
@@ -12,8 +13,19 @@ import { site } from "@/lib/site";
 
 type Params = { params: Promise<{ id: string }> };
 
+/* Writing a whole book is minutes of streaming, and the platform cuts the
+   response at its own ceiling regardless of what the code is doing. Without
+   this the stream dies mid-book in production while working fine in dev.
+   300s is the Vercel Pro / Fluid limit; drop it to 60 if a deploy rejects it. */
+export const maxDuration = 300;
+
 const GENERATE_LIMIT = 6;
 const GENERATE_WINDOW_MS = 60 * 60 * 1000;
+
+/* A run that has not touched the book for this long is dead, not busy: the
+   connection dropped, or the function was cut off. Without this a single dead
+   stream locks the book behind "already_generating" forever. */
+const STALE_AFTER_MS = 5 * 60 * 1000;
 
 function originAllowed(request: Request): boolean {
   const origin = request.headers.get("origin");
@@ -71,17 +83,6 @@ export async function POST(request: Request, { params }: Params) {
     });
   }
 
-  const rate = await checkRateLimit(`books:generate:${userId}`, {
-    limit: GENERATE_LIMIT,
-    windowMs: GENERATE_WINDOW_MS,
-  });
-  if (!rate.ok) {
-    return new Response(JSON.stringify({ error: "rate_limited" }), {
-      status: 429,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
   const { id } = await params;
   const book = await getBookForUser(id, userId);
   if (!book) {
@@ -91,9 +92,28 @@ export async function POST(request: Request, { params }: Params) {
     });
   }
 
-  if (book.status === "outlining" || book.status === "writing") {
+  const running = book.status === "outlining" || book.status === "writing";
+  const lastTouch = Date.parse(book.updated_at);
+  const stalled =
+    !Number.isFinite(lastTouch) || Date.now() - lastTouch > STALE_AFTER_MS;
+
+  if (running && !stalled) {
     return new Response(JSON.stringify({ error: "already_generating" }), {
       status: 409,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  /* Counted only once the request is going to do real work. Charging the
+     limiter before the checks above let a stuck book burn the whole hourly
+     allowance on 409s. */
+  const rate = await checkRateLimit(`books:generate:${userId}`, {
+    limit: GENERATE_LIMIT,
+    windowMs: GENERATE_WINDOW_MS,
+  });
+  if (!rate.ok) {
+    return new Response(JSON.stringify({ error: "rate_limited" }), {
+      status: 429,
       headers: { "Content-Type": "application/json" },
     });
   }
@@ -156,13 +176,27 @@ export async function POST(request: Request, { params }: Params) {
 
         if (!outline) throw new Error("Missing outline");
 
-        const chapters = await replaceOutlineChapters(book.id, outline);
+        const chapters = await syncOutlineChapters(book.id, outline);
 
         const previousTitles: string[] = [];
 
         for (let index = 0; index < chapters.length; index++) {
           const chapter = chapters[index];
           const outlineChapter = outline.chapters[index];
+
+          /* Written on an earlier attempt. Replay it so the reader sees the
+             whole book, without buying the same chapter twice. */
+          if (chapter.status === "ready" && chapter.body.trim()) {
+            previousTitles.push(chapter.title);
+            send("chapter_done", {
+              id: chapter.id,
+              position: chapter.position,
+              title: chapter.title,
+              body: chapter.body,
+            });
+            continue;
+          }
+
           await updateChapter(chapter.id, { status: "writing" });
           send("chapter_start", {
             id: chapter.id,
@@ -195,6 +229,8 @@ export async function POST(request: Request, { params }: Params) {
             status: "ready",
           });
           previousTitles.push(outlineChapter.title);
+          // Keeps the staleness check above honest during a long run.
+          await touchBook(book.id);
           send("chapter_done", {
             id: chapter.id,
             position: chapter.position,
