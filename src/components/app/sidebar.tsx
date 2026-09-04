@@ -69,10 +69,10 @@ export function AppSidebar({
           </p>
           <div className="mt-4 flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-black/10 px-2.5 py-1 text-[10px] font-bold uppercase">
-              {isFounder ? "Founding" : "Free plan"}
+              {isFounder ? "Pro" : "Free plan"}
             </span>
             <Link
-              href="/#founding-offer"
+              href="/pricing"
               className="text-[11px] font-bold underline-offset-2 hover:underline"
             >
               Upgrade →

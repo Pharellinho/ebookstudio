@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
+import { IDEA_MAX_LENGTH, saveHandoffIdea } from "@/lib/idea-handoff";
 
 const suggestions = [
   "A meal-prep playbook for shift workers",
@@ -26,9 +27,13 @@ export function IdeaForm({
     if (autoFocus) field.current?.focus();
   }, [autoFocus]);
 
+  /* Same channel as the homepage box: the idea waits in sessionStorage while
+     the visitor signs up, and ScribeFlow on /create picks it up. Never a query
+     string — that would put the text in logs, history and referrers. */
   function submit() {
     if (disabled) return;
-    router.push(`/create?idea=${encodeURIComponent(idea.trim())}`);
+    saveHandoffIdea(idea.trim());
+    router.push("/signup");
   }
 
   return (
@@ -48,6 +53,7 @@ export function IdeaForm({
           name="idea"
           ref={field}
           rows={compact ? 2 : 3}
+          maxLength={IDEA_MAX_LENGTH}
           value={idea}
           onChange={(event) => setIdea(event.target.value)}
           onKeyDown={(event) => {

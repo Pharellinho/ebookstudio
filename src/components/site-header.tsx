@@ -6,7 +6,7 @@ import { Logo } from "@/components/logo";
 const links = [
   { label: "How it works", href: "/#how-it-works" },
   { label: "Features", href: "/#features" },
-  { label: "Founding offer", href: "/#founding-offer" },
+  { label: "Pricing", href: "/pricing" },
   { label: "FAQ", href: "/#faq" },
 ];
 
@@ -40,7 +40,7 @@ export function SiteHeader() {
             </SignInButton>
             <Link
               href="/signup"
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border-2 border-foreground bg-primary px-4 py-2 text-sm font-extrabold text-on-primary shadow-sm transition-all duration-150 hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+              className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background transition-colors duration-200 hover:bg-foreground/85"
             >
               Start writing
               <ArrowRight className="size-3.5" aria-hidden="true" />

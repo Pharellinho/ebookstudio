@@ -6,7 +6,8 @@ import { ReferralLink } from "@/components/referral-link";
 import { getClientIp } from "@/lib/client-ip";
 import { checkRateLimit, hashIp } from "@/lib/rate-limit";
 import { ButtonLink } from "@/components/ui/button";
-import { founder, site } from "@/lib/site";
+import { site } from "@/lib/site";
+import { waitlistOffer } from "@/lib/waitlist-offer";
 import { confirmWaitlist, getStanding } from "@/lib/waitlist";
 
 export const metadata: Metadata = {
@@ -77,7 +78,7 @@ export default async function WelcomePage({
 
   const referralUrl = `${site.url}/?ref=${code}`;
   const remaining = Math.max(
-    founder.referralsForFreeSpot - standing.referrals,
+    waitlistOffer.referralsForFreeSpot - standing.referrals,
     0,
   );
 
@@ -98,7 +99,7 @@ export default async function WelcomePage({
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
           The studio is open. Create your account with this email address and
-          your ${founder.monthlyPrice}/mo founding rate comes with it.
+          your ${waitlistOffer.monthlyPrice}/mo founding rate comes with it.
           {!standing.confirmed ? (
             <>
               {" "}
@@ -136,8 +137,8 @@ export default async function WelcomePage({
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Every person who joins with your link and confirms their email moves
-            you up {founder.referralJump} places and adds{" "}
-            {founder.referralCredits} bonus credits.{" "}
+            you up {waitlistOffer.referralJump} places and adds{" "}
+            {waitlistOffer.referralCredits} bonus credits.{" "}
             {standing.freeSpotEarned
               ? "You have earned a free founding year."
               : `${remaining} more and your first year is free.`}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ResumeIdeaLink } from "@/components/app/resume-idea-link";
 import {
   BookOpen,
   Clock,
@@ -126,16 +127,10 @@ export default async function DashboardPage() {
 
           {books.map((book) => {
             const format = getFormat(book.format_slug);
-            return (
-              <Link
-                key={book.id}
-                href={
-                  book.status === "ready"
-                    ? `/studio/${book.id}`
-                    : `/create?idea=${encodeURIComponent(book.idea)}`
-                }
-                className="rounded-2xl border border-border/80 bg-background p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(0,0,0,0.07)]"
-              >
+            const cardClass =
+              "rounded-2xl border border-border/80 bg-background p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(0,0,0,0.07)]";
+            const card = (
+              <>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-primary-strong">
                   {format?.name ?? book.format_slug} · {book.status}
                 </p>
@@ -145,7 +140,24 @@ export default async function DashboardPage() {
                 <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                   {book.subtitle ?? book.idea}
                 </p>
+              </>
+            );
+            return book.status === "ready" ? (
+              <Link
+                key={book.id}
+                href={`/studio/${book.id}`}
+                className={cardClass}
+              >
+                {card}
               </Link>
+            ) : (
+              <ResumeIdeaLink
+                key={book.id}
+                idea={book.idea}
+                className={cardClass}
+              >
+                {card}
+              </ResumeIdeaLink>
             );
           })}
         </div>

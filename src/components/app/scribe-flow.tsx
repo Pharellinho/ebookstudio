@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { formats } from "@/lib/content";
+import { takeHandoffIdea } from "@/lib/idea-handoff";
 import { MarkdownBody } from "@/components/app/markdown-body";
 
 type Step = "idea" | "format" | "titles" | "outline" | "writing" | "done";
@@ -41,7 +42,10 @@ export function ScribeFlow() {
   const [formatSlug, setFormatSlug] = useState("lead-magnet");
   const [formatName, setFormatName] = useState("Lead Magnet");
   const [formatReason, setFormatReason] = useState("");
-  const [credits, setCredits] = useState(25);
+  // Kept in step with the API reply but never shown: there is no balance,
+  // no deduction and no billing yet, so a cost on screen would be a promise.
+  const [, setCredits] = useState(25);
+  const [showFormatPicker, setShowFormatPicker] = useState(false);
   const [chapterRange, setChapterRange] = useState("5–7");
 
   const [titles, setTitles] = useState<TitleOption[]>([]);
@@ -67,6 +71,14 @@ export function ScribeFlow() {
      connection nobody was reading, and the book sat in "writing" for good.
      Aborting ends the request so the book can be picked up again. */
   useEffect(() => () => generation.current?.abort(), []);
+
+  /* An idea typed on the landing page waits in sessionStorage while the
+     visitor signs up. Take it once, then it is gone — it never travels in a
+     URL. It is plain text for the textarea, nothing else. */
+  useEffect(() => {
+    const pending = takeHandoffIdea();
+    if (pending) setIdea(pending);
+  }, []);
 
   const activeChapter = liveChapters[activePosition] ?? liveChapters[0];
   const finalTitle = showCustomTitle ? customTitle.trim() : selectedTitle;
@@ -366,13 +378,17 @@ export function ScribeFlow() {
     <div className="mx-auto max-w-3xl">
       <div className="overflow-hidden rounded-3xl border border-border/70 bg-background shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
         <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4">
-          <div>
-            <p className="font-display text-sm font-bold">
-              Scribe — your AI book agent
-            </p>
-          </div>
+          <p className="font-display text-sm">
+            <span className="font-bold">Scribe</span>{" "}
+            <span className="font-medium text-muted-foreground">
+              your AI book agent
+            </span>
+          </p>
           <p className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-            <span className="size-2 animate-pulse rounded-full bg-primary" />
+            <span
+              className="size-2 shrink-0 rounded-full bg-primary"
+              aria-hidden="true"
+            />
             {statusLine}
           </p>
         </div>
@@ -439,88 +455,122 @@ export function ScribeFlow() {
           ) : null}
 
           {step !== "idea" ? (
-            <div className="ml-auto max-w-[85%] rounded-2xl bg-muted px-4 py-3 text-sm">
-              {idea}
-              {step === "format" ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep("idea");
-                    setStatusLine("Scribe is listening.");
-                  }}
-                  className="mt-2 block text-xs font-semibold text-primary-strong"
-                >
-                  Edit idea
-                </button>
-              ) : null}
+            <div className="flex items-start justify-end gap-3">
+              {/* The idea is rendered as text, nothing more: React escapes it
+                  and it never reaches an instruction of any kind here. */}
+              <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-muted px-4 py-3 text-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Your idea
+                </p>
+                <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
+                  {idea}
+                </p>
+                {step === "format" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFormatPicker(false);
+                      setStep("idea");
+                      setStatusLine("Scribe is listening.");
+                    }}
+                    className="mt-2 inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary-strong hover:underline"
+                  >
+                    <Pencil className="size-3.5" aria-hidden="true" />
+                    Edit idea
+                  </button>
+                ) : null}
+              </div>
+              <span className="mt-1 shrink-0 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                You
+              </span>
             </div>
           ) : null}
 
           {step === "format" ? (
-            <>
-              <p className="text-sm leading-relaxed">
-                Got it — this looks like a{" "}
-                <span className="font-semibold">{formatName}</span>. I&apos;ll
-                plan {chapterRange} chapters (about {credits} credits). Change
-                the format below if I got it wrong — otherwise let&apos;s plan
-                it.
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Scribe
               </p>
-              {formatReason ? (
-                <p className="text-xs text-muted-foreground">{formatReason}</p>
-              ) : null}
-
-              <div className="rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm font-semibold">
-                    We think this is a {formatName}
-                  </p>
-                  <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                    <Pencil className="size-3.5" />
-                    <select
-                      value={formatSlug}
-                      onChange={(event) => {
-                        const next = ebookFormats.find(
-                          (f) => f.slug === event.target.value,
-                        );
-                        if (!next) return;
-                        setFormatSlug(next.slug);
-                        setFormatName(next.name);
-                        setCredits(next.credits);
-                        setChapterRange(next.chapters);
-                      }}
-                      className="cursor-pointer rounded-lg border border-border bg-background px-2 py-1"
-                    >
-                      {ebookFormats.map((format) => (
-                        <option key={format.slug} value={format.slug}>
-                          {format.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Language: English (default)
+              <div className="mt-2 rounded-2xl rounded-tl-md border border-border/80 bg-background p-4 sm:p-5">
+                <p className="font-display text-base font-bold">
+                  Got it — this looks like a {formatName}.
                 </p>
-              </div>
+                {formatReason ? (
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                    {formatReason}
+                  </p>
+                ) : null}
 
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={planBook}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-extrabold text-on-primary disabled:opacity-60"
-                >
-                  {busy ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Sparkles className="size-4" />
-                      Looks good — plan my book
-                    </>
-                  )}
-                </button>
+                <div className="mt-4 rounded-xl border border-primary/30 bg-primary-soft px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Format:</span>{" "}
+                      <span className="font-semibold">{formatName}</span>{" "}
+                      <span className="text-muted-foreground">
+                        · {chapterRange} chapters
+                      </span>
+                    </p>
+                    <button
+                      type="button"
+                      aria-expanded={showFormatPicker}
+                      onClick={() => setShowFormatPicker((open) => !open)}
+                      className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary-strong hover:underline"
+                    >
+                      <Pencil className="size-3.5" aria-hidden="true" />
+                      Not this? Change it
+                    </button>
+                  </div>
+
+                  {showFormatPicker ? (
+                    <label className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+                      Pick the format
+                      <select
+                        value={formatSlug}
+                        onChange={(event) => {
+                          const next = ebookFormats.find(
+                            (f) => f.slug === event.target.value,
+                          );
+                          if (!next) return;
+                          setFormatSlug(next.slug);
+                          setFormatName(next.name);
+                          setCredits(next.credits);
+                          setChapterRange(next.chapters);
+                        }}
+                        className="cursor-pointer rounded-lg border border-border bg-background px-2 py-1 text-sm font-medium text-foreground"
+                      >
+                        {ebookFormats.map((format) => (
+                          <option key={format.slug} value={format.slug}>
+                            {format.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Language: English (default)
+                  </p>
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={planBook}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-extrabold text-on-primary disabled:opacity-60"
+                  >
+                    {busy ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles className="size-4" />
+                        Looks good — plan my book
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-            </>
+            </div>
           ) : null}
 
           {(step === "titles" ||

@@ -1,5 +1,6 @@
 import { Resend } from "resend";
-import { founder, site } from "@/lib/site";
+import { site } from "@/lib/site";
+import { waitlistOffer } from "@/lib/waitlist-offer";
 
 function getResend() {
   const key = process.env.RESEND_API_KEY?.trim();
@@ -100,7 +101,7 @@ function renderWaitlistText(input: {
     `Confirm and open your spot (required for referral credit): ${input.welcomeUrl}`,
     "",
     `The studio is open — create your account with this email address to start writing.`,
-    `Founding price locked for founding members: $${founder.monthlyPrice}/mo, while the first ${founder.spots} spots last.`,
+    `Founding price locked for founding members: $${waitlistOffer.monthlyPrice}/mo, while the first ${waitlistOffer.spots} spots last.`,
     "",
     `Your personal invite link: ${input.referralUrl}`,
     "",
@@ -146,7 +147,7 @@ function renderWaitlistHtml(input: {
       <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
         The studio is open — create your account with this email address to
         start writing. Founding price for founding members:
-        $${founder.monthlyPrice}/mo, while the first ${founder.spots} spots last.
+        $${waitlistOffer.monthlyPrice}/mo, while the first ${waitlistOffer.spots} spots last.
       </p>
       <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
         Your personal invite link:<br />

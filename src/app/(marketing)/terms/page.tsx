@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
-import { founder, site } from "@/lib/site";
+import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Terms of service",
-  description: `The terms that apply when you use ${site.name}, including accounts, subscriptions, the founding offer and acceptable use.`,
+  description: `The terms that apply when you use ${site.name}, including accounts, subscriptions, payments and acceptable use.`,
   alternates: { canonical: "/terms" },
 };
 
@@ -25,11 +25,10 @@ export default function TermsPage() {
         },
         {
           number: "2.",
-          heading: "Founding offer",
+          heading: "Waiting lists and promotions",
           body: [
-            `The founding offer is limited to the first ${founder.spots} founding members. Once those spots are taken, the public price shown on our Pricing page applies to every new subscription.`,
-            "Where we run a waiting list, joining requires an accurate email address that you control. We use it to confirm your place, send product and founding-offer updates, and (if you used a referral link) attribute referrals. Joining a waiting list does not create a paid subscription by itself.",
-            `Founding members lock the founding price of $${founder.monthlyPrice}/mo for as long as their subscription stays active without interruption, subject to the offer terms shown on the site at the time of signup.`,
+            "Where we run a waiting list, joining requires an accurate email address that you control. We use it to confirm your place, send product updates, and (if you used a referral link) attribute referrals. Joining a waiting list does not create a paid subscription by itself.",
+            "Any promotional price or credit bonus we offer applies only on the terms shown on the site at the time you subscribe, and only for as long as that offer is published. Promotions may be changed or withdrawn for new subscriptions at any time.",
           ],
         },
         {
@@ -54,7 +53,7 @@ export default function TermsPage() {
           number: "5.",
           heading: "Payments, plans and refunds",
           body: [
-            `There is no free plan. Creating, exporting and selling books requires a paid subscription (or other paid package we may offer). Public plans start from the prices shown on our Pricing page; founding members may receive the founding rate described on the site.`,
+            "There is no free plan. Creating, exporting and selling books requires a paid subscription (or other paid package we may offer). Plans start from the prices shown on our Pricing page.",
             "Subscriptions renew automatically each billing cycle until cancelled. One-time credit or add-on purchases, if offered, are billed when purchased.",
             "Because generation and hosting costs are incurred when you use the Service, we do not offer partial or full refunds on subscriptions or credit purchases, except where required by applicable law.",
             "We may change plan prices and terms. Changes will be posted on the site. Price changes for an active subscription typically apply from the next renewal, unless otherwise stated or required by law.",

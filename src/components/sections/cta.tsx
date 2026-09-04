@@ -1,40 +1,53 @@
 import { ArrowRight } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
-import { founder } from "@/lib/site";
-import { getWaitlistStats } from "@/lib/waitlist";
+import { Doodle } from "@/components/ui/doodle";
+import { Reveal } from "@/components/ui/reveal";
+import { pricing } from "@/lib/site";
 
-export async function Cta() {
-  const stats = await getWaitlistStats();
-
+export function Cta() {
   return (
-    <section className="relative overflow-hidden border-t border-border bg-surface-warm py-20 lg:py-24">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-64 left-1/2 size-[44rem] -translate-x-1/2 rounded-full bg-linear-to-t from-primary/15 to-transparent blur-3xl"
-      />
-      <div className="container-page relative mx-auto max-w-2xl text-center">
-        <h2 className="font-display text-4xl font-extrabold sm:text-5xl">
+    <section className="bg-surface-warm py-28 lg:py-40">
+      <div className="container-page mx-auto max-w-2xl text-center">
+        <Reveal
+          as="h2"
+          className="relative font-display text-4xl font-semibold tracking-[-0.03em] sm:text-5xl"
+        >
           Your knowledge is worth more than you think
-        </h2>
-        <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-          Founding members pay ${founder.monthlyPrice}/mo for as long as they
-          stay — the price goes to ${founder.launchPrice} once the first{" "}
-          {founder.spots} spots are gone.
-        </p>
+          <Doodle
+            kind="sparkle"
+            className="absolute -top-7 left-2 size-7 text-primary sm:-left-8 sm:-top-9 sm:size-9"
+          />
+          <Doodle
+            kind="sparkle"
+            className="absolute -right-1 -top-4 size-4 text-primary sm:-right-8 sm:-top-2"
+          />
+          <Doodle
+            kind="sparkle"
+            className="absolute -bottom-5 right-6 size-3 text-primary-strong sm:-right-2 sm:-bottom-3"
+          />
+        </Reveal>
 
-        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <Reveal
+          as="p"
+          delay={70}
+          className="mt-6 text-lg leading-relaxed text-muted-foreground"
+        >
+          ${pricing.monthlyPrice} a month, {pricing.monthlyCredits} credits,
+          commercial rights on everything you make. Cancel anytime.
+        </Reveal>
+
+        <Reveal
+          delay={140}
+          className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row"
+        >
           <ButtonLink href="/signup" size="lg">
             Start your first book
-            <ArrowRight className="size-4" aria-hidden="true" />
+            <ArrowRight className="size-4 text-primary" aria-hidden="true" />
           </ButtonLink>
           <ButtonLink href="/pricing" variant="secondary" size="lg">
             See pricing
           </ButtonLink>
-        </div>
-
-        <p className="mt-6 text-sm font-semibold text-muted-foreground">
-          {stats.spotsLeft} founding spots still open
-        </p>
+        </Reveal>
       </div>
     </section>
   );

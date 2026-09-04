@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import { Reveal } from "@/components/ui/reveal";
 import { faqs, homeFaqs } from "@/lib/content";
 
 type FaqItem = { q: string; a: string };
@@ -11,32 +12,36 @@ export function Faq({
   title?: string;
 }) {
   return (
-    <section id="faq" className="py-20 lg:py-24">
+    <section id="faq" className="bg-surface-warm py-28 lg:py-40">
       <div className="container-page">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="eyebrow-pill">FAQ</p>
-          <h2 className="mt-5 font-display text-4xl font-extrabold sm:text-5xl">
+          <Reveal as="p" className="eyebrow-pill">
+            FAQ
+          </Reveal>
+          <Reveal
+            as="h2"
+            delay={70}
+            className="mt-6 font-display text-4xl font-semibold tracking-[-0.03em] sm:text-5xl"
+          >
             {title}
-          </h2>
+          </Reveal>
         </div>
 
-        <div className="mx-auto mt-12 max-w-3xl space-y-3">
+        <div className="mx-auto mt-16 max-w-3xl divide-y divide-border">
           {items.map((faq, index) => (
-            <details
-              key={faq.q}
-              open={index === 0}
-              className="group rounded-2xl border border-border bg-surface p-6 transition-colors duration-200 open:bg-background open:shadow-md"
-            >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-base font-bold [&::-webkit-details-marker]:hidden">
-                {faq.q}
-                <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary-strong transition-transform duration-200 group-open:rotate-45">
-                  <Plus className="size-4" aria-hidden="true" />
-                </span>
-              </summary>
-              <p className="mt-4 leading-relaxed text-muted-foreground">
-                {faq.a}
-              </p>
-            </details>
+            <Reveal key={faq.q} delay={Math.min(index, 4) * 70}>
+              <details open={index === 0} className="group py-6">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 font-display text-lg font-semibold tracking-[-0.02em] [&::-webkit-details-marker]:hidden">
+                  {faq.q}
+                  <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-primary-strong transition-transform duration-300 group-open:rotate-45">
+                    <Plus className="size-4" aria-hidden="true" />
+                  </span>
+                </summary>
+                <p className="mt-4 max-w-2xl leading-relaxed text-muted-foreground">
+                  {faq.a}
+                </p>
+              </details>
+            </Reveal>
           ))}
         </div>
       </div>

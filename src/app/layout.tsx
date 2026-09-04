@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { DM_Sans, Source_Serif_4, Space_Grotesk } from "next/font/google";
+import { Caveat, DM_Sans, Source_Serif_4, Space_Grotesk } from "next/font/google";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -20,6 +20,14 @@ const spaceGrotesk = Space_Grotesk({
 const sourceSerif = Source_Serif_4({
   variable: "--font-serif",
   subsets: ["latin"],
+  display: "swap",
+});
+
+// Handwritten accents only (the doodle labels); never body copy.
+const caveat = Caveat({
+  variable: "--font-caveat",
+  subsets: ["latin"],
+  weight: ["500", "600"],
   display: "swap",
 });
 
@@ -96,7 +104,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <html
         lang="en"
-        className={`${dmSans.variable} ${spaceGrotesk.variable} ${sourceSerif.variable} h-full`}
+        className={`${dmSans.variable} ${spaceGrotesk.variable} ${sourceSerif.variable} ${caveat.variable} h-full`}
       >
         <body className="min-h-dvh bg-background text-foreground">
           <script

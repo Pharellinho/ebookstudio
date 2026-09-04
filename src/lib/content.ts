@@ -177,22 +177,51 @@ export const features = [
   },
 ];
 
-export const pricingTiers = [
-  { price: 29, credits: 300, note: "Around 8 lead magnets or 6 how-to guides" },
-  { price: 39, credits: 500, note: "Around 14 lead magnets or 8 novels" },
-  { price: 49, credits: 750, popular: true, note: "The sweet spot for weekly publishing" },
-  { price: 59, credits: 1000, note: "For teams shipping a book a week" },
-  { price: 79, credits: 1500, note: "Agencies producing client books" },
-  { price: 99, credits: 2000, note: "High-volume publishing operations" },
+export type PricingTier = {
+  name: string;
+  /** Dollars per month; 0 is the free tier. */
+  price: number;
+  credits: number;
+  note: string;
+  popular?: boolean;
+};
+
+/* Three tiers, no more. Prices here are the only source: the pricing table,
+   the landing section and the /pricing schema all read this array. */
+export const pricingTiers: PricingTier[] = [
+  {
+    price: 0,
+    credits: 0,
+    name: "Free",
+    note: "One complete book. Read it all on screen — export stays locked.",
+  },
+  {
+    price: 29,
+    credits: 300,
+    name: "Studio",
+    note: "Around 8 lead magnets or 6 how-to guides",
+  },
+  {
+    price: 49,
+    credits: 750,
+    name: "Studio Plus",
+    popular: true,
+    note: "The sweet spot for weekly publishing",
+  },
 ];
 
+/* Only what is actually built. Cover regeneration, analytics and priority
+   support do not exist yet, so they are not promised here. */
 export const proFeatures = [
   "Unlimited PDF, EPUB and DOCX exports",
   "Commercial rights on everything you generate",
   "Coloring book studio",
-  "Cover regeneration",
-  "Analytics dashboard",
-  "Priority support",
+];
+
+export const freeFeatures = [
+  "One complete book, written end to end",
+  "Read every page in the studio",
+  "Export unlocks when you upgrade",
 ];
 
 export const homeFaqs = [
@@ -201,12 +230,8 @@ export const homeFaqs = [
     a: "A full manuscript you can edit chapter by chapter, a designed cover, and the export files: a print-ready PDF sized for Amazon KDP, an EPUB for Kindle and Apple Books, and a DOCX if you want to finish the edit in Word.",
   },
   {
-    q: "What is a founding spot?",
-    a: "The first 100 members pay $19/mo instead of $29, get 500 credits a month instead of 300, and 300 bonus credits on their first month. Once the 100 spots are taken, the public price applies to everyone after that.",
-  },
-  {
-    q: "How long does the founding price last?",
-    a: "It stays at $19/mo for as long as your subscription runs without interruption. If you cancel and come back later, the public price applies.",
+    q: "What does it cost?",
+    a: "$29/mo for 300 credits, which covers several books a month depending on the format. You can cancel at any time and keep every file you have already exported.",
   },
   {
     q: "Is there a free plan?",
@@ -245,7 +270,7 @@ export const faqs = [
   },
   {
     q: "Can I try it before paying?",
-    a: "There is no free plan. A paid plan is required to create, export and sell your books. Founding members lock $19/mo for as long as they stay subscribed, while the first 100 spots last.",
+    a: "There is no free plan. A paid plan is required to create, export and sell your books, which is what pays for the generation itself. It is $29/mo and you can cancel at any time.",
   },
 ];
 

@@ -5,20 +5,22 @@ import { cn } from "@/lib/cn";
 type Variant = "primary" | "secondary" | "ghost";
 type Size = "md" | "lg";
 
+// Honey is an accent, never a button fill: the primary action is solid black,
+// the secondary a hairline outline. Motion is a soft colour/shadow shift rather
+// than the old press-into-the-shadow trick.
 const base =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg font-extrabold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-full font-semibold tracking-tight transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-60";
 
 const variants: Record<Variant, string> = {
-  primary:
-    "border-2 border-foreground bg-primary text-on-primary shadow-md hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none",
+  primary: "bg-foreground text-background hover:bg-foreground/85",
   secondary:
-    "border-2 border-foreground bg-background text-foreground shadow-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none",
-  ghost: "text-foreground hover:bg-muted",
+    "border border-border bg-background text-foreground hover:border-foreground/30 hover:bg-surface-warm",
+  ghost: "text-muted-foreground hover:text-foreground",
 };
 
 const sizes: Record<Size, string> = {
   md: "px-5 py-2.5 text-sm",
-  lg: "px-7 py-3.5 text-base",
+  lg: "px-7 py-3.5 text-[0.95rem]",
 };
 
 type ButtonLinkProps = ComponentProps<typeof Link> & {

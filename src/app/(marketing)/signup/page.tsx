@@ -20,9 +20,12 @@ export default function SignUpPage() {
         </p>
 
         <div className="mt-8 w-full">
+          {/* A brand-new account has no books yet: land it on Scribe, where the
+              idea typed on the landing page is already waiting. Login keeps
+              sending returning users to their dashboard. */}
           <SignUp
             routing="hash"
-            forceRedirectUrl="/dashboard"
+            forceRedirectUrl="/create"
             signInUrl="/login"
             appearance={{
               elements: {

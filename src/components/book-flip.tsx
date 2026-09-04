@@ -641,6 +641,20 @@ function splitNumeral(text: string) {
   return match ? { numeral: match[1], rest: match[2] } : null;
 }
 
+/** "Chapter Two" → a small "Chapter" above a large "Two"; "3" stays "3".
+ *  Lets the banner opener print a big figure whatever form the label takes. */
+function splitChapterLabel(text: string) {
+  const trimmed = text.trim();
+  const digits = /^\d+$/.test(trimmed)
+    ? trimmed
+    : (splitNumeral(trimmed)?.numeral ?? null);
+  if (digits) return { lead: null, figure: digits };
+
+  const words = trimmed.split(/\s+/);
+  if (words.length < 2) return { lead: null, figure: trimmed };
+  return { lead: words.slice(0, -1).join(" "), figure: words[words.length - 1] };
+}
+
 /** White type on a pale tint is unreadable — treat light covers as paper pages. */
 function isLightTint(hex: string) {
   const raw = hex.replace("#", "");
@@ -704,6 +718,13 @@ function headGap(book: SampleBook) {
   return book.design.runningHead === "none" ? "" : "mt-5";
 }
 
+/** Accent type set on paper. A pale accent — the honey rate card — washes out
+ *  against the sheet, so that book prints the words in its ordinary ink and
+ *  keeps the accent for the rule and the tint. No new colour is introduced. */
+function accentInk(book: SampleBook) {
+  return isLightTint(book.accent) ? undefined : book.accent;
+}
+
 /** Readable ink for text sitting on a solid accent band. */
 function onAccent(book: SampleBook) {
   return isLightTint(book.accent) ? "text-foreground" : "text-white";
@@ -719,6 +740,34 @@ function ChapterOpener({
   number: string;
   heading: string;
 }) {
+  if (book.design.chapterOpener === "banner") {
+    const { lead, figure } = splitChapterLabel(number);
+
+    return (
+      <div>
+        {/* Full-bleed band: the Sheet drops its top padding for this opener, so
+            the colour runs to all three edges and the title lands on paper. */}
+        <div
+          className={`-mx-7 px-7 pb-7 pt-8 ${onAccent(book)}`}
+          style={{ backgroundColor: book.accent }}
+        >
+          {lead ? (
+            <p className="text-[0.44rem] font-semibold uppercase tracking-[0.3em] opacity-70">
+              {lead}
+            </p>
+          ) : null}
+          <p className="mt-1 font-display text-[2.9rem] font-extrabold leading-[0.82] tracking-tight">
+            {figure}
+          </p>
+        </div>
+
+        <p className="mt-6 text-[1.02rem] font-semibold leading-[1.2] tracking-tight">
+          {heading}
+        </p>
+      </div>
+    );
+  }
+
   if (book.design.chapterOpener === "block") {
     return (
       <div
@@ -834,9 +883,13 @@ function SectionHeading({
   );
 }
 
+/* `mt-auto` pins the folio to the foot of the sheet and `shrink-0` stops the
+   flex column from squeezing it. The content block above it carries `min-h-0`
+   + `overflow-hidden`, so long copy is clipped instead of pushing the number
+   out of the page. */
 function Folio({ children }: { children: React.ReactNode }) {
   return (
-    <p className="pt-3 text-center text-[0.5rem] tabular-nums tracking-[0.2em] text-foreground/35">
+    <p className="mt-auto shrink-0 pt-3 text-center text-[0.5rem] tabular-nums tracking-[0.2em] text-foreground/35">
       {children}
     </p>
   );
@@ -881,11 +934,12 @@ function PageView({
           />
         </div>
         <p
-          className="mt-3 text-center text-[0.58rem] italic"
+          className="mt-3 shrink-0 text-center text-[0.58rem] italic"
           style={{ color: `${book.accent}80` }}
         >
           {page.caption}
         </p>
+        <Folio>{page.folio}</Folio>
       </div>
     );
   }
@@ -902,7 +956,7 @@ function PageView({
           style={{ backgroundColor: `${book.accent}59` }}
         />
 
-        <ul className="mt-6 flex-1">
+        <ul className="mt-6 min-h-0 overflow-hidden flex-1">
           {page.entries.map((entry) =>
             entry.part ? (
               <li
@@ -929,6 +983,8 @@ function PageView({
             ),
           )}
         </ul>
+
+        <Folio>{page.folio}</Folio>
       </Sheet>
     );
   }
@@ -938,9 +994,11 @@ function PageView({
       <Sheet
         book={book}
         className={
-          book.design.chapterOpener === "block"
-            ? "px-7 pb-5 pt-7"
-            : "px-7 pb-5 pt-12"
+          book.design.chapterOpener === "banner"
+            ? "px-7 pb-5 pt-0"
+            : book.design.chapterOpener === "block"
+              ? "px-7 pb-5 pt-7"
+              : "px-7 pb-5 pt-12"
         }
       >
         <ChapterOpener
@@ -949,7 +1007,7 @@ function PageView({
           heading={page.heading}
         />
 
-        <div className={`mt-6 flex-1 ${prose(book)} ${paragraphFlow(book)}`}>
+        <div className={`mt-6 min-h-0 flex-1 overflow-hidden ${prose(book)} ${paragraphFlow(book)}`}>
           {page.paragraphs.map((paragraph, position) => (
             <p
               key={paragraph.slice(0, 24)}
@@ -972,7 +1030,7 @@ function PageView({
       <Sheet book={book} className="px-7 pb-5 pt-6">
         <RunningHead book={book} />
 
-        <div className={`${headGap(book)} flex-1`}>
+        <div className={`${headGap(book)} min-h-0 flex-1 overflow-hidden`}>
           {page.subheading ? (
             <div className="mb-2.5">
               <SectionHeading book={book} text={page.subheading} />
@@ -995,7 +1053,7 @@ function PageView({
       <Sheet book={book} className="px-6 pb-5 pt-6">
         <RunningHead book={book} />
 
-        <div className={`${headGap(book)} flex-1`}>
+        <div className={`${headGap(book)} min-h-0 flex-1 overflow-hidden`}>
           <SectionHeading
             book={book}
             text={page.heading}
@@ -1007,18 +1065,17 @@ function PageView({
 
           <table className="mt-3.5 w-full border-collapse text-[0.55rem]">
             <thead>
-              <tr>
+              <tr
+                className={onAccent(book)}
+                style={{ backgroundColor: book.accent }}
+              >
                 {page.columns.map((column, position) => (
                   <th
                     key={column}
                     scope="col"
-                    className={`border-b pb-1 text-[0.44rem] font-semibold uppercase tracking-[0.14em] ${
+                    className={`px-1.5 py-1 text-[0.44rem] font-semibold uppercase tracking-[0.14em] ${
                       position === 0 ? "text-left" : "text-right"
                     }`}
-                    style={{
-                      color: book.accent,
-                      borderColor: `${book.accent}40`,
-                    }}
                   >
                     {column}
                   </th>
@@ -1026,12 +1083,21 @@ function PageView({
               </tr>
             </thead>
             <tbody>
-              {page.rows.map((row) => (
-                <tr key={row[0]} className="border-b border-foreground/8">
+              {page.rows.map((row, line) => (
+                <tr
+                  key={row[0]}
+                  // Zebra rather than rules: a hairline under every row fights
+                  // the solid header band and makes the page look like a form.
+                  style={
+                    line % 2 === 1
+                      ? { backgroundColor: `${book.accent}0f` }
+                      : undefined
+                  }
+                >
                   {row.map((cell, position) => (
                     <td
                       key={cell + position}
-                      className={`py-[0.28rem] ${
+                      className={`px-1.5 py-[0.3rem] ${
                         position === 0
                           ? "text-left text-foreground/80"
                           : "text-right tabular-nums text-foreground/60"
@@ -1055,6 +1121,178 @@ function PageView({
     );
   }
 
+  if (page.kind === "callout") {
+    return (
+      <Sheet book={book} className="px-7 pb-5 pt-6">
+        <RunningHead book={book} />
+
+        <div className={`${headGap(book)} flex min-h-0 flex-1 items-center overflow-hidden`}>
+          <aside
+            className="w-full py-4 pl-4 pr-4"
+            style={{
+              backgroundColor: `${book.accent}14`,
+              borderLeft: `2px solid ${book.accent}`,
+            }}
+          >
+            <p
+              className="text-[0.42rem] font-bold uppercase tracking-[0.26em] text-foreground/45"
+            >
+              {page.label}
+            </p>
+            <p
+              className="mt-1.5 text-[0.72rem] font-semibold leading-snug tracking-tight"
+              style={{ color: accentInk(book) }}
+            >
+              {page.heading}
+            </p>
+            <div className={`mt-2.5 ${prose(book)} ${paragraphFlow(book)}`}>
+              {page.paragraphs.map((paragraph) => (
+                <p key={paragraph.slice(0, 24)}>{paragraph}</p>
+              ))}
+            </div>
+          </aside>
+        </div>
+
+        <Folio>{page.folio}</Folio>
+      </Sheet>
+    );
+  }
+
+  if (page.kind === "quote") {
+    return (
+      <Sheet book={book} className="px-7 pb-5 pt-6">
+        <RunningHead book={book} />
+
+        <div className={`${headGap(book)} flex min-h-0 flex-1 flex-col justify-center overflow-hidden`}>
+          {/* Sized to sit around half the page — the pause between two runs of
+              body text that a book uses to let one idea land. */}
+          <blockquote className="min-h-[46%] content-center">
+            <p
+              className="text-[1.05rem] font-semibold leading-[1.34] tracking-tight"
+              style={{ color: accentInk(book) }}
+            >
+              {page.quote}
+            </p>
+            <span
+              aria-hidden="true"
+              className="mt-4 block h-px w-8"
+              style={{ backgroundColor: `${book.accent}59` }}
+            />
+            <p className="mt-3 text-[0.5rem] uppercase tracking-[0.2em] text-foreground/45">
+              {page.attribution}
+            </p>
+          </blockquote>
+        </div>
+
+        <Folio>{page.folio}</Folio>
+      </Sheet>
+    );
+  }
+
+  if (page.kind === "definitions") {
+    return (
+      <Sheet book={book} className="px-7 pb-5 pt-6">
+        <RunningHead book={book} />
+
+        <div className={`${headGap(book)} min-h-0 flex-1 overflow-hidden`}>
+          <SectionHeading
+            book={book}
+            text={page.heading}
+            size="text-[0.78rem]"
+          />
+          <p className="mt-1.5 text-[0.53rem] leading-[1.6] text-foreground/60">
+            {page.intro}
+          </p>
+
+          <dl className={`mt-3.5 space-y-2 ${prose(book)}`}>
+            {page.items.map((item) => (
+              <div key={item.term}>
+                <dt
+                  className="inline font-semibold"
+                  style={{ color: accentInk(book) }}
+                >
+                  {item.term}:
+                </dt>{" "}
+                <dd className="ml-0 inline">{item.body}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <Folio>{page.folio}</Folio>
+      </Sheet>
+    );
+  }
+
+  if (page.kind === "comparison") {
+    return (
+      <Sheet book={book} className="px-6 pb-5 pt-6">
+        <RunningHead book={book} />
+
+        <div className={`${headGap(book)} min-h-0 flex-1 overflow-hidden`}>
+          <SectionHeading
+            book={book}
+            text={page.heading}
+            size="text-[0.78rem]"
+          />
+          <p className="mt-1.5 text-[0.53rem] leading-[1.6] text-foreground/60">
+            {page.intro}
+          </p>
+
+          <table className="mt-3.5 w-full table-fixed border-collapse text-[0.5rem]">
+            <thead>
+              <tr
+                className={onAccent(book)}
+                style={{ backgroundColor: book.accent }}
+              >
+                {page.columns.map((column) => (
+                  <th
+                    key={column}
+                    scope="col"
+                    className="px-2 py-1.5 text-left text-[0.44rem] font-semibold uppercase tracking-[0.14em]"
+                  >
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {page.rows.map((pair, line) => (
+                <tr
+                  key={pair[0].term}
+                  style={
+                    line % 2 === 1
+                      ? { backgroundColor: `${book.accent}0f` }
+                      : undefined
+                  }
+                >
+                  {pair.map((cell, position) => (
+                    <td
+                      key={cell.term}
+                      className={`px-2 py-2 align-top leading-[1.55] text-foreground/70 ${
+                        position === 1 ? "border-l border-foreground/10" : ""
+                      }`}
+                    >
+                      <span
+                        className="font-semibold"
+                        style={{ color: accentInk(book) }}
+                      >
+                        {cell.term}:
+                      </span>{" "}
+                      {cell.body}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <Folio>{page.folio}</Folio>
+      </Sheet>
+    );
+  }
+
   if (page.kind === "statement") {
     const light = isLightTint(book.tint);
 
@@ -1071,7 +1309,7 @@ function PageView({
             {page.label}
           </p>
 
-          <div>
+          <div className="min-h-0 overflow-hidden">
             <p className="text-[0.95rem] font-extrabold leading-[1.32] tracking-tight">
               {page.statement}
             </p>
@@ -1084,7 +1322,7 @@ function PageView({
             </p>
           </div>
 
-          <p className="text-center text-[0.5rem] tabular-nums tracking-[0.2em] text-white/40">
+          <p className="mt-auto shrink-0 pt-3 text-center text-[0.5rem] tabular-nums tracking-[0.2em] text-white/40">
             {page.folio}
           </p>
         </div>
@@ -1107,7 +1345,9 @@ function PageView({
           className="mt-4 block h-px w-7"
           style={{ backgroundColor: `${book.accent}59` }}
         />
-        <p className={`mt-4 ${prose(book)}`}>{page.support}</p>
+        <p className={`mt-4 min-h-0 overflow-hidden ${prose(book)}`}>
+          {page.support}
+        </p>
         <Folio>{page.folio}</Folio>
       </Sheet>
     );
@@ -1118,7 +1358,7 @@ function PageView({
       <Sheet book={book} className="px-7 pb-5 pt-6">
         <RunningHead book={book} />
 
-        <div className={`${headGap(book)} flex-1`}>
+        <div className={`${headGap(book)} min-h-0 flex-1 overflow-hidden`}>
           <SectionHeading
             book={book}
             text={page.heading}
@@ -1156,7 +1396,7 @@ function PageView({
 
   return (
     <Sheet book={book} className="px-6 pb-5 pt-6">
-      <div className="flex-1">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <p
           className="text-[0.44rem] font-bold uppercase tracking-[0.26em]"
           style={{ color: book.accent }}

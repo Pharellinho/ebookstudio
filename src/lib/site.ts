@@ -37,32 +37,21 @@ export const site = {
   url: resolveSiteUrl(),
   tagline: "Write it once. Get paid for years.",
   description:
-    "EbookStudio turns one idea into a full manuscript, a designed cover and store-ready PDF, EPUB and DOCX files, with commercial rights included. Founding members lock $19/mo while spots last.",
+    "EbookStudio turns one idea into a full manuscript, a designed cover and store-ready PDF, EPUB and DOCX files, with commercial rights included. $29/mo, cancel anytime.",
   twitter: "@ebookstudioai",
   contactEmail: "ebook.studiai@gmail.com",
 } as const;
 
-export const founder = {
-  spots: 100,
-  monthlyPrice: 19,
-  monthlyCredits: 500,
-  bonusCredits: 300,
-  reservationPrice: 9,
-  launchPrice: 29,
-  launchCredits: 300,
-  /** Credits granted per confirmed referral. */
-  referralCredits: 50,
-  /** Positions gained per confirmed referral. */
-  referralJump: 10,
-  /** Referrals needed for a free founding spot. */
-  referralsForFreeSpot: 10,
+export const pricing = {
+  monthlyPrice: 29,
+  monthlyCredits: 300,
 } as const;
 
 export const nav = {
   product: [
     { label: "How it works", href: "/#how-it-works" },
     { label: "Ebook types", href: "/ebook-types" },
-    { label: "Founding offer", href: "/#founding-offer" },
+    { label: "Pricing", href: "/pricing" },
   ],
   useCases: [
     { label: "For self-publishing authors", href: "/for-authors" },

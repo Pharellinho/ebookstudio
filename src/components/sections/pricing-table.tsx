@@ -1,9 +1,17 @@
-"use client";
-
-import { useState } from "react";
-import { ArrowRight, Check, CreditCard, Lock, ShieldCheck, Zap } from "lucide-react";
-import { pricingTiers, proFeatures } from "@/lib/content";
+import Link from "next/link";
+import { ArrowRight, Check, CreditCard, ShieldCheck, Zap } from "lucide-react";
+import { freeFeatures, pricingTiers, proFeatures } from "@/lib/content";
+import { pricing } from "@/lib/site";
 import { cn } from "@/lib/cn";
+
+/* No checkout exists yet: every column sends people to sign up and write
+   their free book. Nothing here promises a payment processor. */
+const SIGNUP_LABEL = "Start free — your first book is on us";
+const FREE_LINE =
+  "Your first book is free. You only pay when you're ready to export and sell it.";
+
+/** A sample copy price, used only for the "quick math" paragraph on /pricing. */
+const SAMPLE_COPY_PRICE = 14.99;
 
 const trustBadges = [
   {
@@ -17,149 +25,145 @@ const trustBadges = [
     body: "No contracts and no lock-in. Downgrade or cancel in one click.",
   },
   {
-    icon: Lock,
-    title: "Secure payments",
-    body: "Every transaction is processed by Stripe with bank-level encryption.",
-  },
-  {
     icon: ShieldCheck,
     title: "Commercial rights",
     body: "You own what you generate. Sell it on KDP, Etsy or your own site.",
   },
 ];
 
-export function PricingTable() {
-  const [selected, setSelected] = useState(pricingTiers[0].price);
-  const tier =
-    pricingTiers.find((item) => item.price === selected) ?? pricingTiers[0];
+/**
+ * The three plans, side by side. Shared by /pricing (full version, with the
+ * trust badges and the quick math) and the landing page (`compact`, which
+ * shows the columns and points to /pricing for the detail).
+ */
+export function PricingTable({ compact = false }: { compact?: boolean }) {
+  const studio =
+    pricingTiers.find((tier) => tier.price === pricing.monthlyPrice) ??
+    pricingTiers[1];
+  const copiesToCover = Math.ceil(studio.price / SAMPLE_COPY_PRICE);
+  const leftAfterTen = Math.round(10 * SAMPLE_COPY_PRICE - studio.price);
 
   return (
     <div>
-      <div className="mx-auto max-w-lg">
-        <div className="relative rounded-3xl border-2 border-primary bg-surface-warm p-8 shadow-xl">
-          <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-on-primary">
-            Most popular
-          </span>
-
-          <div className="text-center">
-            <p className="text-sm font-bold uppercase tracking-[0.14em] text-primary">
-              Pro
-            </p>
-            <p className="mt-3 font-display text-5xl font-extrabold">
-              ${tier.price}
-              <span className="text-lg font-semibold text-muted-foreground">
-                /mo
-              </span>
-            </p>
-            <p className="mt-2 font-semibold">
-              {tier.credits} credits every month
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Cancel anytime · billed monthly · no lock-in
-            </p>
-          </div>
-
-          <ul className="mt-7 space-y-3">
-            {proFeatures.map((feature) => (
-              <li key={feature} className="flex items-start gap-3">
-                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary-soft">
-                  <Check
-                    className="size-3 text-primary-strong"
-                    aria-hidden="true"
-                  />
+      <div className="grid gap-5 md:grid-cols-3 md:items-stretch">
+        {pricingTiers.map((tier) => {
+          const free = tier.price === 0;
+          const features = free ? freeFeatures : proFeatures;
+          return (
+            <div
+              key={tier.name}
+              className={cn(
+                "relative flex flex-col rounded-3xl border bg-background p-7",
+                tier.popular
+                  ? "border-primary shadow-lg"
+                  : "border-border shadow-sm",
+              )}
+            >
+              {tier.popular ? (
+                <span className="absolute -top-3 left-7 rounded-full bg-primary-soft px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-primary-strong">
+                  Most popular
                 </span>
-                <span className="text-sm text-muted-foreground">{feature}</span>
-              </li>
-            ))}
-          </ul>
+              ) : null}
 
-          <button
-            type="button"
-            className="mt-8 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 font-bold text-on-primary shadow-md transition-all duration-200 hover:bg-primary-strong hover:shadow-lg"
-          >
-            Get Pro — ${tier.price}/mo
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {tier.name}
+              </p>
+              <p className="mt-4 font-display text-4xl font-semibold tracking-[-0.03em]">
+                {free ? (
+                  "Free"
+                ) : (
+                  <>
+                    ${tier.price}
+                    <span className="text-base font-medium text-muted-foreground">
+                      /mo
+                    </span>
+                  </>
+                )}
+              </p>
+              <p className="mt-2 text-sm font-medium">
+                {free
+                  ? "No card required"
+                  : `${tier.credits} credits every month`}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                {tier.note}
+              </p>
 
-      <div className="mx-auto mt-8 max-w-3xl rounded-3xl border border-border bg-background p-6">
-        <p className="text-center text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-          Pro plans
-        </p>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
-          Pick the monthly credits that fit you. Change it whenever you want.
-        </p>
+              <ul className="mt-6 space-y-2.5">
+                {features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary-soft">
+                      <Check
+                        className="size-3 text-primary-strong"
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {feature}
+                    </span>
+                  </li>
+                ))}
+              </ul>
 
-        <div
-          role="radiogroup"
-          aria-label="Monthly credit plans"
-          className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3"
-        >
-          {pricingTiers.map((item) => {
-            const active = item.price === selected;
-            return (
-              <button
-                key={item.price}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => setSelected(item.price)}
+              <Link
+                href="/signup"
                 className={cn(
-                  "relative cursor-pointer rounded-2xl border-2 px-4 py-4 text-center transition-all duration-200",
-                  active
-                    ? "border-primary bg-primary-soft"
-                    : "border-border bg-background hover:border-primary/40",
+                  "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-center text-sm font-semibold tracking-tight transition-colors duration-200",
+                  tier.popular
+                    ? "bg-foreground text-background hover:bg-foreground/85"
+                    : "border border-border bg-background text-foreground hover:border-foreground/30 hover:bg-surface-warm",
                 )}
               >
-                {item.popular ? (
-                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-primary px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-on-primary">
-                    Popular
-                  </span>
-                ) : null}
-                <p className="font-display text-xl font-extrabold">
-                  ${item.price}
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    /mo
-                  </span>
-                </p>
-                <p className="mt-0.5 text-xs font-semibold text-primary">
-                  {item.credits} credits
-                </p>
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="mt-5 text-center text-sm text-muted-foreground">
-          Every plan includes the full Pro feature set. Cancel anytime.
-        </p>
+                {SIGNUP_LABEL}
+                <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
+              </Link>
+            </div>
+          );
+        })}
       </div>
 
-      <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {trustBadges.map((badge) => (
-          <div
-            key={badge.title}
-            className="rounded-2xl border border-border bg-surface p-5 text-center"
-          >
-            <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary-soft text-primary-strong">
-              <badge.icon className="size-5" aria-hidden="true" />
-            </span>
-            <h3 className="mt-4 font-display text-sm font-bold">
-              {badge.title}
-            </h3>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-              {badge.body}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <p className="mx-auto mt-8 max-w-2xl rounded-2xl bg-primary-soft px-6 py-4 text-center text-sm leading-relaxed text-foreground">
-        <span className="font-bold">Quick math:</span> at $14.99 a copy, two
-        sales cover the $29 plan. Ten sales leave roughly $120 after the
-        subscription.
+      <p className="mx-auto mt-8 max-w-xl text-center text-sm leading-relaxed text-muted-foreground">
+        {FREE_LINE}
       </p>
+
+      {compact ? (
+        <p className="mt-4 text-center text-sm">
+          <Link
+            href="/pricing"
+            className="font-semibold text-foreground underline-offset-4 hover:underline"
+          >
+            See what each book costs in credits →
+          </Link>
+        </p>
+      ) : (
+        <>
+          <div className="mt-10 grid gap-5 sm:grid-cols-3">
+            {trustBadges.map((badge) => (
+              <div
+                key={badge.title}
+                className="rounded-2xl border border-border bg-surface p-5 text-center"
+              >
+                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary-soft text-primary-strong">
+                  <badge.icon className="size-5" aria-hidden="true" />
+                </span>
+                <h3 className="mt-4 font-display text-sm font-bold">
+                  {badge.title}
+                </h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                  {badge.body}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <p className="mx-auto mt-8 max-w-2xl rounded-2xl bg-primary-soft px-6 py-4 text-center text-sm leading-relaxed text-foreground">
+            <span className="font-bold">Quick math:</span> at $
+            {SAMPLE_COPY_PRICE} a copy, {copiesToCover === 2 ? "two" : copiesToCover}{" "}
+            sales cover the {studio.name} plan. Ten sales leave roughly $
+            {leftAfterTen} after the subscription.
+          </p>
+        </>
+      )}
     </div>
   );
 }

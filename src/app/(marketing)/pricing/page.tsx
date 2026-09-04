@@ -1,31 +1,33 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { PricingTable } from "@/components/sections/pricing-table";
 import { Faq } from "@/components/sections/faq";
 import { faqs, formats } from "@/lib/content";
-import { founder, site } from "@/lib/site";
+import { pricingTiers } from "@/lib/content";
+import { pricing, site } from "@/lib/site";
+
+const paidTiers = pricingTiers.filter((tier) => tier.price > 0);
+const lowestPaid = Math.min(...paidTiers.map((tier) => tier.price));
+const highestPaid = Math.max(...paidTiers.map((tier) => tier.price));
 
 export const metadata: Metadata = {
   title: "Pricing — credits, plans and what a book costs",
-  description:
-    "EbookStudio plans start at $29/mo for 300 credits. See what each ebook format costs in credits, what a regeneration costs, and what every plan includes.",
+  description: `Your first book is free. Paid plans start at $${pricing.monthlyPrice}/mo for ${pricing.monthlyCredits} credits. See what each ebook format costs in credits, what a regeneration costs, and what every plan includes.`,
   alternates: { canonical: "/pricing" },
 };
 
 const productSchema = {
   "@context": "https://schema.org",
   "@type": "Product",
-  name: `${site.name} Pro`,
+  name: `${site.name} Studio`,
   description:
     "AI ebook studio subscription with monthly credits, unlimited exports and commercial rights.",
   brand: { "@type": "Brand", name: site.name },
   offers: {
     "@type": "AggregateOffer",
     priceCurrency: "USD",
-    lowPrice: 29,
-    highPrice: 99,
-    offerCount: 6,
+    lowPrice: lowestPaid,
+    highPrice: highestPaid,
+    offerCount: paidTiers.length,
     url: `${site.url}/pricing`,
   },
 };
@@ -44,21 +46,18 @@ export default function PricingPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">
             Pricing
           </p>
-          <h1 className="mt-3 font-display text-4xl font-bold sm:text-5xl">
-            Go Pro from $29/mo to publish
+          <h1 className="mt-3 font-display text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">
+            Your first book is free. Plans from ${pricing.monthlyPrice}/mo.
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            A Pro plan is required to create, export and sell — including
-            commercial rights and the coloring book studio.
+            Write and read one complete book at no cost. A paid plan unlocks
+            exports and selling — including commercial rights and the
+            coloring book studio.
           </p>
 
-          <Link
-            href="/#founding-offer"
-            className="mt-8 inline-flex items-center gap-2 rounded-full border-2 border-primary bg-primary-soft px-5 py-3 text-sm font-bold text-primary-strong transition-colors hover:bg-primary hover:text-on-primary"
-          >
-            Founding members pay ${founder.monthlyPrice}/mo while spots last
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
+          <p className="mt-8 text-sm text-muted-foreground">
+            From ${pricing.monthlyPrice}/mo · cancel anytime
+          </p>
         </div>
       </section>
 

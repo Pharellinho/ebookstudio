@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ResumeIdeaLink } from "@/components/app/resume-idea-link";
 import { Plus } from "lucide-react";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { listBooksForUser } from "@/lib/books";
@@ -58,17 +59,10 @@ export default async function BooksPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {books.map((book) => {
             const format = getFormat(book.format_slug);
-            const href =
-              book.status === "ready"
-                ? `/studio/${book.id}`
-                : `/create?idea=${encodeURIComponent(book.idea)}`;
-
-            return (
-              <Link
-                key={book.id}
-                href={href}
-                className="flex flex-col rounded-2xl border-2 border-border bg-background p-5 transition-all hover:border-foreground hover:shadow-sm"
-              >
+            const cardClass =
+              "flex flex-col rounded-2xl border-2 border-border bg-background p-5 transition-all hover:border-foreground hover:shadow-sm";
+            const card = (
+              <>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                     {format?.name ?? book.format_slug}
@@ -94,7 +88,25 @@ export default async function BooksPage() {
                 <p className="mt-4 text-xs text-muted-foreground">
                   Updated {new Date(book.updated_at).toLocaleDateString()}
                 </p>
+              </>
+            );
+
+            return book.status === "ready" ? (
+              <Link
+                key={book.id}
+                href={`/studio/${book.id}`}
+                className={cardClass}
+              >
+                {card}
               </Link>
+            ) : (
+              <ResumeIdeaLink
+                key={book.id}
+                idea={book.idea}
+                className={cardClass}
+              >
+                {card}
+              </ResumeIdeaLink>
             );
           })}
         </div>

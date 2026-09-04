@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { MarkdownBody } from "@/components/app/markdown-body";
+import { ResumeIdeaLink } from "@/components/app/resume-idea-link";
 
 type Chapter = {
   id: string;
@@ -98,12 +99,12 @@ export function StudioReader({
           PDF / EPUB export and cover polish come next.
         </p>
         <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold">
-          <Link
-            href={`/create?idea=${encodeURIComponent(idea)}`}
+          <ResumeIdeaLink
+            idea={idea}
             className="text-primary underline-offset-4 hover:underline"
           >
             Generate another
-          </Link>
+          </ResumeIdeaLink>
           <Link
             href={`/studio/${bookId}`}
             className="text-muted-foreground underline-offset-4 hover:underline"

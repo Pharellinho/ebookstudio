@@ -2,7 +2,7 @@ export type ContentsEntry = { label: string; page?: number; part?: boolean };
 
 export type SamplePage =
   | { kind: "cover" }
-  | { kind: "contents"; heading: string; entries: ContentsEntry[] }
+  | { kind: "contents"; heading: string; entries: ContentsEntry[]; folio: number }
   | {
       kind: "chapter";
       number: string;
@@ -44,13 +44,45 @@ export type SamplePage =
       swaps: { field: string; hint: string }[];
       folio: number;
     }
-  | { kind: "art"; caption: string; image: string };
+  | {
+      kind: "callout";
+      /** Eyebrow printed above the rule: TIP, IMPORTANT, REMEMBER… */
+      label: string;
+      heading: string;
+      paragraphs: string[];
+      folio: number;
+    }
+  /** Bold term, then the explanation — a glossary or a diagnosis list. */
+  | {
+      kind: "definitions";
+      heading: string;
+      intro: string;
+      items: { term: string; body: string }[];
+      folio: number;
+    }
+  /** Two facing columns under one accent header: what it is, what it is not. */
+  | {
+      kind: "comparison";
+      heading: string;
+      intro: string;
+      columns: [string, string];
+      rows: { term: string; body: string }[][];
+      folio: number;
+    }
+  | {
+      kind: "quote";
+      quote: string;
+      attribution: string;
+      folio: number;
+    }
+  | { kind: "art"; caption: string; image: string; folio: number };
 
 /* Each book is typeset by a different imaginary publisher. These switches are
    what stop the five samples reading as one template with the colour swapped. */
 export type BookDesign = {
-  /** How a chapter page opens: printed book, workbook exercise, or PDF banner. */
-  chapterOpener: "classic" | "numeral" | "block";
+  /** How a chapter page opens: printed book, workbook exercise, PDF banner, or
+   *  a full-bleed colour band with the chapter figure knocked out of it. */
+  chapterOpener: "classic" | "numeral" | "block" | "banner";
   /** Drop cap on the first paragraph of a chapter. */
   dropCap: boolean;
   /** What sits at the top of continuation pages. */
@@ -92,7 +124,7 @@ export const sampleBooks: SampleBook[] = [
     /* A traditional printed how-to: justified columns, indented paragraphs,
        a drop cap opening each chapter and the title running along the top. */
     design: {
-      chapterOpener: "classic",
+      chapterOpener: "banner",
       dropCap: true,
       runningHead: "smallcaps",
       align: "justify",
@@ -102,6 +134,7 @@ export const sampleBooks: SampleBook[] = [
       {
         kind: "contents",
         heading: "Contents",
+        folio: 5,
         entries: [
           { label: "Part One · Before you plant", part: true },
           { label: "1. What a balcony can grow", page: 11 },
@@ -128,7 +161,6 @@ export const sampleBooks: SampleBook[] = [
           "Six hours of direct summer sun and tomatoes are on the table. Four, and you are in the world of lettuce, chard, mint and parsley, which is a perfectly good world to live in and rather less work. Two, and you are growing for leaves rather than fruit.",
           "The mistake almost everyone makes is planting for the balcony they wish they had. A shaded balcony growing herbs beautifully beats a shaded balcony growing three leggy tomatoes that never ripen. There is no prize for attempting the difficult thing badly.",
           "South-facing is not the whole answer either. A balcony with a deep concrete slab overhead can end up shadier in midsummer than an east-facing one with open sky, because the sun climbs high enough to sit behind the floor above. Look up before you trust the compass.",
-          "Write the number down somewhere you will find it again — the inside cover of this book will do. Every choice in the next eight chapters refers back to it, and you will be tempted, on some warm evening in May, to pretend it was higher than it was.",
         ],
       },
       {
@@ -141,8 +173,49 @@ export const sampleBooks: SampleBook[] = [
           "What you are looking for is not a number but a shape: a band of light that crosses the floor and climbs the wall. Pots go where that band sits longest. Anything that has to ripen takes the sunny end, herbs fill the middle, and the shaded end takes the mint, which will otherwise colonise everything you own.",
           "Reflected light counts for more than people expect. A pale wall behind a pot throws a surprising amount back onto the leaves, and a glass balustrade does the same. A dark brick wall gives back heat rather than light, which helps you in May and works against you in August.",
           "Keep the photographs. A season later they stop being a plan and become a record, and the difference between a gardener who improves each year and one who repeats the same year forever is usually nothing more grand than the habit of writing things down.",
-          "One caution: do not map in the week the clocks change, when the light feels dramatic and misleading. Late April and the first fortnight of July give you the two honest readings — one at the start of the season, one at its peak.",
         ],
+      },
+      {
+        kind: "definitions",
+        heading: "Reading a plant's complaint",
+        intro:
+          "A pot tells you what is wrong long before it dies. Four signs cover most of a first season.",
+        items: [
+          {
+            term: "Yellow lower leaves",
+            body: "Almost always water, and almost always too much of it. Push a finger in to the second knuckle before you reach for the can again.",
+          },
+          {
+            term: "Crisp brown edges",
+            body: "Heat and wind rather than thirst. Move the pot back from the railing and give it an hour of afternoon shade.",
+          },
+          {
+            term: "Long stems, few leaves",
+            body: "The plant is reaching for light it cannot find. Nothing you feed it will fix a shaded corner.",
+          },
+          {
+            term: "Flowers but no fruit",
+            body: "Nobody has pollinated it. Four floors up there are fewer insects, so brush the flowers with a soft brush yourself.",
+          },
+        ],
+        folio: 26,
+      },
+      {
+        kind: "callout",
+        label: "In practice",
+        heading: "Water the soil, never the leaves",
+        folio: 29,
+        paragraphs: [
+          "A wet leaf in full sun scorches, and a wet leaf overnight invites the grey mildew that no amount of feeding will undo. Put the spout under the foliage and let it run at the base.",
+          "Count to five while you pour. If the water is still sitting on the surface when you stop, the compost has dried hard enough to repel it, and the pot needs a slow second pass ten minutes later.",
+        ],
+      },
+      {
+        kind: "quote",
+        quote:
+          "A balcony will grow almost anything you ask of it, provided you ask in the right month and accept that the railing, not the seed catalogue, decides what is possible.",
+        attribution: "Nadia Korrel, on her third season",
+        folio: 33,
       },
       {
         kind: "table",
@@ -174,7 +247,6 @@ export const sampleBooks: SampleBook[] = [
           "Water early, water slowly, and water until it runs out of the bottom. A quick splash wets the surface and teaches the roots to stay shallow, which is the opposite of what you want in the week the temperature climbs.",
           "Mulch is the cheapest thing you will do all year. Two centimetres of bark, gravel or even torn cardboard on the surface halves how fast the pot dries, and it stops the soil crusting into a lid that water simply runs across.",
           "Saucers are a matter of judgement rather than rule. In a heatwave they buy you a few hours, which can save a pot on a day you cannot get home. In a wet fortnight they drown roots quietly, and by the time the leaves yellow the damage is already a week old. Fill them in July, tip them out in September.",
-          "The test that never lies is your finger. Push it in to the second knuckle: damp at the tip means wait, dry means water now. Every gadget sold for this job does it less reliably, and none of them tell you anything at the moment you are actually standing in front of the pot.",
         ],
       },
     ],
@@ -203,6 +275,7 @@ export const sampleBooks: SampleBook[] = [
       {
         kind: "contents",
         heading: "Contents",
+        folio: 3,
         entries: [
           { label: "How to use this book", page: 5 },
           { label: "1. Name the real work", page: 9 },
@@ -224,7 +297,6 @@ export const sampleBooks: SampleBook[] = [
           "You will move through six short exercises. Do them in order. Each one feeds the next, and none of them needs more than ten minutes if you stop polishing and start writing.",
           "Skip nothing on the first pass. The point is not a flawless plan. The point is a week with a centre — one outcome that would make Friday feel like a win even if half the noise never got done.",
           "Write in the margins if you need to. Cross things out. The page is a tool, not a keepsake. When you finish exercise six, you should be able to say, in one sentence, what this week is for.",
-          "One last thing before you start. Nobody finishes this workbook feeling calm. You finish it feeling clear, which is a different thing and a more useful one — clarity is knowing what you are not doing this week, and being at peace with the list you left behind.",
         ],
       },
       {
@@ -237,7 +309,16 @@ export const sampleBooks: SampleBook[] = [
           "If you circled more than one thing, you have not chosen yet. Choose. The workbook only works when the week has one job that matters most. Two centres is the same as none.",
           "Write that outcome at the top of the next page in a full sentence. Not “finish website”, but “Ship the pricing page so new visitors can buy without a call.” Specific beats ambitious. Ambition without a finish line is just another open tab.",
           "Expect resistance at the circling step. The mind will insist that three things are equally urgent, because choosing one means admitting the other two will sit untouched for five days. That discomfort is the exercise working, not the exercise failing.",
-          "If you genuinely cannot choose, use this tiebreaker: which item, left undone, will still be a problem in a month? Urgency fades on its own. Consequence does not. Circle the one with consequence and let the loud one wait.",
+        ],
+      },
+      {
+        kind: "callout",
+        label: "Remember",
+        heading: "When a block collapses",
+        folio: 12,
+        paragraphs: [
+          "Some weeks a protected block gets eaten anyway. Do not rebuild the plan around it. That is how one lost hour turns into a lost week.",
+          "Move the block once, to the next morning, and leave everything else exactly where it stands. A plan that survives a bad Tuesday is worth more than a plan that was perfect on Monday.",
         ],
       },
       {
@@ -250,8 +331,54 @@ export const sampleBooks: SampleBook[] = [
           "You should now have one sentence for the week and a short set of supporting tasks. If the supporting list is still longer than a dozen lines, cut again. Focus is not a mood. It is the discipline of leaving good work on the floor.",
           "Watch for the tasks that survive every cut because they feel productive. Reorganising files, refining a system, grooming a backlog — none of them move the outcome, and all of them are more comfortable than the work that does. Cross those out first, precisely because you would rather not.",
           "Some items are not tasks at all. Anything waiting on another person is a message you owe them, not work you owe yourself. Turn it into one line, send it, and delete the task. Ninety seconds, and three lines leave the page.",
-          "Then count what is left. Between six and ten supporting tasks is a working week. Under six and you are probably hiding something from yourself. Over ten and you have not finished cutting, whatever your reasoning is telling you.",
         ],
+      },
+      {
+        kind: "comparison",
+        heading: "What this workbook is",
+        intro:
+          "Before exercise four, settle what you are actually buying with the hour. Most disappointment starts in the right-hand column.",
+        columns: ["A week plan is", "A week plan is not"],
+        rows: [
+          [
+            {
+              term: "A single decision",
+              body: "Made once on Monday, so the other four days do not each need one.",
+            },
+            {
+              term: "A full calendar",
+              body: "Filling every hour is not planning. It is hiding from the choice.",
+            },
+          ],
+          [
+            {
+              term: "A finish line",
+              body: "One outcome you can point at on Friday and call done.",
+            },
+            {
+              term: "A wish list",
+              body: "Six priorities is the same as none, written more neatly.",
+            },
+          ],
+          [
+            {
+              term: "Repairable",
+              body: "It survives a bad Tuesday because it only holds one thing.",
+            },
+            {
+              term: "A promise",
+              body: "Nobody is grading you on it. Cross things out without ceremony.",
+            },
+          ],
+        ],
+        folio: 21,
+      },
+      {
+        kind: "quote",
+        quote:
+          "A week without a centre is not a busy week. It is five days of deciding again, every hour, what the week was supposed to be about.",
+        attribution: "From exercise three · Protect three blocks",
+        folio: 27,
       },
       {
         kind: "body",
@@ -263,7 +390,6 @@ export const sampleBooks: SampleBook[] = [
           "Notice the finish line is public and small. That is what makes it reachable. When Friday arrived, she had one clear yes: the page was live. The rest of the list could wait until next Monday without pretending it was urgent today.",
           "What she did not do is as instructive as what she did. No new client calls on Tuesday or Wednesday. No answering the thread about next quarter. Two requests landed on Thursday and both got the same reply: yes, next week.",
           "The blocks are ninety minutes, not four hours. A four-hour block is a fantasy that collapses at the first interruption and takes the day's confidence down with it. Ninety minutes survives a late start, a phone call and a slow coffee, and it still ships something.",
-          "Copy the shape onto your own week now, before you turn the page. One sentence at the top, three blocks in the calendar, a Friday that reviews rather than builds. The content will be yours. The structure is what carries over.",
         ],
       },
     ],
@@ -290,21 +416,25 @@ export const sampleBooks: SampleBook[] = [
       { kind: "cover" },
       {
         kind: "art",
+        folio: 3,
         caption: "A turtle in the kelp forest",
         image: "/samples/page-deep-sea-turtle.webp",
       },
       {
         kind: "art",
+        folio: 7,
         caption: "The octopus and the shell",
         image: "/samples/page-deep-sea-octopus.webp",
       },
       {
         kind: "art",
+        folio: 11,
         caption: "Whale song near the surface",
         image: "/samples/page-deep-sea-whale.webp",
       },
       {
         kind: "art",
+        folio: 15,
         caption: "Breakfast on the reef",
         image: "/samples/page-deep-sea-reef.webp",
       },
@@ -357,6 +487,16 @@ export const sampleBooks: SampleBook[] = [
         folio: 8,
       },
       {
+        kind: "callout",
+        label: "Important",
+        heading: "Before you send the number",
+        folio: 10,
+        paragraphs: [
+          "Read the price out loud and stop at the full stop. If you hear yourself adding but, just, or normally, delete the sentence that follows. It is a discount nobody asked you for.",
+          "The client is measuring your number against a budget, not against your worth. Let the figure sit on the page and wait.",
+        ],
+      },
+      {
         kind: "steps",
         heading: "Three prices, one conversation",
         intro:
@@ -381,6 +521,13 @@ export const sampleBooks: SampleBook[] = [
         folio: 12,
       },
       {
+        kind: "quote",
+        quote:
+          "Nobody has ever been talked out of a budget by an apology. Plenty of people have been talked out of hiring you by one.",
+        attribution: "Mira Solano, on quoting without flinching",
+        folio: 15,
+      },
+      {
         kind: "body",
         subheading: "A sample reply, after the call",
         folio: 17,
@@ -390,7 +537,6 @@ export const sampleBooks: SampleBook[] = [
           "Reply with the option that fits, or tell me what needs to move and I will reshape the middle tier. — Mira",
           "Three options kill the awkward single-number stare-down. The middle tier is designed to win, and the close invites a conversation instead of a discount.",
           "Notice what is missing. No apology, no explanation of how much work this really is, no hedging about whether the budget might stretch. The prices sit in plain sentences with a full stop after them. Explaining a number invites the client to negotiate the explanation rather than the number.",
-          "Send it within a day of the call, while the conversation is still warm and the problem still feels urgent to them. A quote that lands a week later has to compete with whatever has taken your place in their head, and it usually loses.",
         ],
       },
     ],

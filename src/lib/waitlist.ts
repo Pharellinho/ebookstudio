@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { founder } from "@/lib/site";
+import { waitlistOffer } from "@/lib/waitlist-offer";
 import { getSupabaseAdmin, supabaseConfigured } from "@/lib/supabase/admin";
 
 export type WaitlistEntry = {
@@ -98,7 +98,7 @@ export function sanitizeSource(raw: string | null | undefined): string | null {
 
 /** Effective queue position after referral boosts. */
 function effectivePosition(rawPosition: number, referrals: number) {
-  return Math.max(rawPosition - referrals * founder.referralJump, 1);
+  return Math.max(rawPosition - referrals * waitlistOffer.referralJump, 1);
 }
 
 function standingFrom(input: {
@@ -115,9 +115,9 @@ function standingFrom(input: {
     referrals: input.referrals,
     founder: input.founder,
     bonusCredits:
-      founder.bonusCredits + input.referrals * founder.referralCredits,
-    spotsLeft: Math.max(founder.spots - input.foundersTaken, 0),
-    freeSpotEarned: input.referrals >= founder.referralsForFreeSpot,
+      waitlistOffer.bonusCredits + input.referrals * waitlistOffer.referralCredits,
+    spotsLeft: Math.max(waitlistOffer.spots - input.foundersTaken, 0),
+    freeSpotEarned: input.referrals >= waitlistOffer.referralsForFreeSpot,
     confirmed: input.confirmed,
   };
 }
@@ -192,7 +192,7 @@ async function joinLocal(input: {
 
   const referredBy =
     referrer && referrer.email !== input.email ? referrer.code : null;
-  const isFounder = entries.length < founder.spots;
+  const isFounder = entries.length < waitlistOffer.spots;
 
   const entry: WaitlistEntry = {
     email: input.email,
@@ -226,7 +226,7 @@ async function standingLocal(code: string): Promise<WaitlistStanding | null> {
   const referrals = countConfirmedReferralsLocal(entries, code);
   const foundersTaken = Math.min(
     entries.filter((item) => item.founder).length || entries.length,
-    founder.spots,
+    waitlistOffer.spots,
   );
 
   return standingFrom({
@@ -254,11 +254,11 @@ async function statsLocal() {
   const entries = await readLocal();
   const foundersTaken = Math.min(
     entries.filter((item) => item.founder).length || entries.length,
-    founder.spots,
+    waitlistOffer.spots,
   );
   return {
     total: entries.length,
-    spotsLeft: Math.max(founder.spots - foundersTaken, 0),
+    spotsLeft: Math.max(waitlistOffer.spots - foundersTaken, 0),
   };
 }
 
@@ -327,7 +327,7 @@ async function joinSupabase(input: {
     .eq("founder", true);
 
   const foundersTaken = foundersBefore ?? totalBefore ?? 0;
-  const isFounder = foundersTaken < founder.spots;
+  const isFounder = foundersTaken < waitlistOffer.spots;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const code = makeCode();
@@ -496,7 +496,7 @@ async function confirmSupabase(code: string, token: string): Promise<boolean> {
 
 async function statsSupabase() {
   const supabase = getSupabaseAdmin();
-  if (!supabase) return { total: 0, spotsLeft: founder.spots };
+  if (!supabase) return { total: 0, spotsLeft: waitlistOffer.spots };
 
   const [{ count: total }, { count: foundersTaken }] = await Promise.all([
     supabase.from("waitlist").select("*", { count: "exact", head: true }),
@@ -508,7 +508,7 @@ async function statsSupabase() {
 
   return {
     total: total ?? 0,
-    spotsLeft: Math.max(founder.spots - (foundersTaken ?? 0), 0),
+    spotsLeft: Math.max(waitlistOffer.spots - (foundersTaken ?? 0), 0),
   };
 }
 
@@ -591,6 +591,6 @@ export async function getWaitlistStats() {
     return await statsSupabase();
   } catch (error) {
     console.error("getWaitlistStats failed", error);
-    return { total: 0, spotsLeft: founder.spots };
+    return { total: 0, spotsLeft: waitlistOffer.spots };
   }
 }

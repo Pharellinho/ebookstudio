@@ -4,14 +4,11 @@ import { Examples } from "@/components/sections/examples";
 import { Features } from "@/components/sections/features";
 import { HowItWorks } from "@/components/sections/how-it-works";
 import { Platforms } from "@/components/sections/platforms";
-import { FounderOffer } from "@/components/sections/founder-offer";
 import { Faq, faqStructuredData } from "@/components/sections/faq";
 import { Cta } from "@/components/sections/cta";
+import { PricingTable } from "@/components/sections/pricing-table";
+import { Reveal } from "@/components/ui/reveal";
 import { site } from "@/lib/site";
-
-// The spot counter is read at render time, so the page must not stay frozen
-// at its build-time value.
-export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: `${site.name}: ${site.tagline} (AI ebook generator)`,
@@ -34,8 +31,26 @@ export default function HomePage() {
       <HowItWorks />
       <Features />
       <Platforms />
-      <FounderOffer />
       <Faq />
+      <section id="pricing" className="py-28 lg:py-40">
+        <div className="container-page">
+          <div className="mx-auto max-w-2xl text-center">
+            <Reveal as="p" className="eyebrow-pill">
+              Pricing
+            </Reveal>
+            <Reveal
+              as="h2"
+              delay={70}
+              className="mt-6 font-display text-4xl font-semibold tracking-[-0.03em] sm:text-5xl"
+            >
+              Start free. Pay when you&apos;re ready to sell.
+            </Reveal>
+          </div>
+          <Reveal delay={140} className="mt-16">
+            <PricingTable compact />
+          </Reveal>
+        </div>
+      </section>
       <Cta />
     </>
   );
