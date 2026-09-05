@@ -1,6 +1,7 @@
 "use client";
 
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export function MarkdownBody({
   content,
@@ -20,7 +21,21 @@ export function MarkdownBody({
       className={`ebook-prose font-book text-[15px] leading-relaxed text-foreground/90 ${className}`}
     >
       <Markdown
+        remarkPlugins={[remarkGfm]}
         components={{
+          table: ({ children }) => (
+            <div className="mb-3 overflow-x-auto">
+              <table className="w-full border-collapse text-sm">{children}</table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="border-b border-border bg-muted px-2 py-1.5 text-left font-semibold">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="border-b border-border px-2 py-1.5 align-top">{children}</td>
+          ),
           h1: ({ children }) => (
             <h1 className="font-display mb-3 text-2xl font-bold tracking-tight">
               {children}

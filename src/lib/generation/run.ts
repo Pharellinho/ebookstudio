@@ -69,12 +69,15 @@ export async function* streamChapter(input: {
   chapterIndex: number;
   chapterTotal: number;
   previousTitles: string[];
+  /** Aborting it stops the OpenAI stream mid-chapter instead of paying for the rest. */
+  signal?: AbortSignal;
 }): AsyncGenerator<string> {
   const format = getFormat(input.formatSlug);
   if (!format) throw new Error("Unknown format");
 
   const openai = getOpenAI();
-  const stream = await openai.chat.completions.create({
+  const stream = await openai.chat.completions.create(
+    {
     model: GENERATION_MODEL,
     temperature: 0.75,
     stream: true,
@@ -94,7 +97,9 @@ export async function* streamChapter(input: {
         }),
       },
     ],
-  });
+    },
+    { signal: input.signal },
+  );
 
   for await (const chunk of stream) {
     const text = chunk.choices[0]?.delta?.content;

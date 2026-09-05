@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BookCardActions } from "@/components/app/book-card-actions";
 import { ResumeIdeaLink } from "@/components/app/resume-idea-link";
 import {
   BookOpen,
@@ -128,7 +129,8 @@ export default async function DashboardPage() {
           {books.map((book) => {
             const format = getFormat(book.format_slug);
             const cardClass =
-              "rounded-2xl border border-border/80 bg-background p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(0,0,0,0.07)]";
+              "block h-full rounded-2xl border border-border/80 bg-background p-5 pb-12 shadow-[0_4px_20px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(0,0,0,0.07)]";
+            const cardTitle = book.title ?? book.idea;
             const card = (
               <>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-primary-strong">
@@ -142,22 +144,18 @@ export default async function DashboardPage() {
                 </p>
               </>
             );
-            return book.status === "ready" ? (
-              <Link
-                key={book.id}
-                href={`/studio/${book.id}`}
-                className={cardClass}
-              >
-                {card}
-              </Link>
-            ) : (
-              <ResumeIdeaLink
-                key={book.id}
-                idea={book.idea}
-                className={cardClass}
-              >
-                {card}
-              </ResumeIdeaLink>
+            return (
+              <BookCardActions key={book.id} bookId={book.id} title={cardTitle}>
+                {book.status === "ready" ? (
+                  <Link href={`/studio/${book.id}`} className={cardClass}>
+                    {card}
+                  </Link>
+                ) : (
+                  <ResumeIdeaLink idea={book.idea} className={cardClass}>
+                    {card}
+                  </ResumeIdeaLink>
+                )}
+              </BookCardActions>
             );
           })}
         </div>

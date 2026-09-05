@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BookCardActions } from "@/components/app/book-card-actions";
 import { ResumeIdeaLink } from "@/components/app/resume-idea-link";
 import { Plus } from "lucide-react";
 import { getCurrentProfile } from "@/lib/auth/session";
@@ -60,7 +61,8 @@ export default async function BooksPage() {
           {books.map((book) => {
             const format = getFormat(book.format_slug);
             const cardClass =
-              "flex flex-col rounded-2xl border-2 border-border bg-background p-5 transition-all hover:border-foreground hover:shadow-sm";
+              "flex h-full flex-col rounded-2xl border-2 border-border bg-background p-5 pb-12 transition-all hover:border-foreground hover:shadow-sm";
+            const cardTitle = book.title ?? "Untitled draft";
             const card = (
               <>
                 <div className="flex items-center justify-between gap-2">
@@ -91,22 +93,18 @@ export default async function BooksPage() {
               </>
             );
 
-            return book.status === "ready" ? (
-              <Link
-                key={book.id}
-                href={`/studio/${book.id}`}
-                className={cardClass}
-              >
-                {card}
-              </Link>
-            ) : (
-              <ResumeIdeaLink
-                key={book.id}
-                idea={book.idea}
-                className={cardClass}
-              >
-                {card}
-              </ResumeIdeaLink>
+            return (
+              <BookCardActions key={book.id} bookId={book.id} title={cardTitle}>
+                {book.status === "ready" ? (
+                  <Link href={`/studio/${book.id}`} className={cardClass}>
+                    {card}
+                  </Link>
+                ) : (
+                  <ResumeIdeaLink idea={book.idea} className={cardClass}>
+                    {card}
+                  </ResumeIdeaLink>
+                )}
+              </BookCardActions>
             );
           })}
         </div>

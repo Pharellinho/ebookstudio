@@ -1,5 +1,9 @@
+import type { BookDesign } from "@/lib/book-design";
+
 export type EbookFormat = {
   slug: string;
+  /** Typographic identity of the generated book (see book-design.ts). */
+  design: BookDesign;
   name: string;
   pages: string;
   chapters: string;
@@ -13,6 +17,7 @@ export type EbookFormat = {
 export const formats: EbookFormat[] = [
   {
     slug: "lead-magnet",
+    design: { typeface: "sans", align: "left", dropCap: false, chapterOpener: "block", runningHead: "none" },
     name: "Lead Magnet",
     pages: "8–15",
     chapters: "5–7",
@@ -29,6 +34,7 @@ export const formats: EbookFormat[] = [
   },
   {
     slug: "research-report",
+    design: { typeface: "serif", align: "left", dropCap: false, chapterOpener: "rule", runningHead: "rule" },
     name: "Research Report",
     pages: "20–40",
     chapters: "8–12",
@@ -45,6 +51,7 @@ export const formats: EbookFormat[] = [
   },
   {
     slug: "how-to-guide",
+    design: { typeface: "sans", align: "left", dropCap: false, chapterOpener: "banner", runningHead: "rule" },
     name: "How-To Guide",
     pages: "30–60",
     chapters: "10–12",
@@ -61,6 +68,7 @@ export const formats: EbookFormat[] = [
   },
   {
     slug: "interactive-workbook",
+    design: { typeface: "sans", align: "left", dropCap: false, chapterOpener: "numeral", runningHead: "rule" },
     name: "Interactive Workbook",
     pages: "40–80",
     chapters: "10–15",
@@ -77,6 +85,7 @@ export const formats: EbookFormat[] = [
   },
   {
     slug: "course-companion",
+    design: { typeface: "sans", align: "left", dropCap: false, chapterOpener: "numeral", runningHead: "rule" },
     name: "Course Companion",
     pages: "50–120",
     chapters: "15–20",
@@ -93,6 +102,7 @@ export const formats: EbookFormat[] = [
   },
   {
     slug: "fiction-novel",
+    design: { typeface: "serif", align: "justify", dropCap: true, chapterOpener: "classic", runningHead: "smallcaps" },
     name: "Fiction Novel",
     pages: "150–300",
     chapters: "20–30",
@@ -109,6 +119,7 @@ export const formats: EbookFormat[] = [
   },
   {
     slug: "coloring-book",
+    design: { typeface: "sans", align: "left", dropCap: false, chapterOpener: "block", runningHead: "none" },
     name: "Coloring Book",
     pages: "20–40",
     chapters: "12–16",
@@ -275,57 +286,6 @@ export const faqs = [
 ];
 
 // Placeholder copy. Replace with real, attributable quotes before launch.
-export const testimonials = [
-  {
-    quote:
-      "I turned a workshop I have taught for years into a 60-page guide in an afternoon. It has been my best-performing lead magnet since.",
-    name: "Marta Reinholt",
-    role: "Business coach",
-  },
-  {
-    quote:
-      "The course companion lifted completion on my flagship program noticeably. Students actually print the workbook.",
-    name: "Devon Ackerly",
-    role: "Course creator",
-  },
-  {
-    quote:
-      "The cover was the part I always outsourced. Now I get something I can upload to KDP without touching a design tool.",
-    name: "Priya Nandakumar",
-    role: "Self-publishing author",
-  },
-  {
-    quote:
-      "I had the outline in my head for two years. Seeing it laid out as chapters was the push that finally got it written.",
-    name: "Tomas Berglund",
-    role: "Consultant",
-  },
-  {
-    quote:
-      "Formatting used to eat my launch week. Now the export is done before I have finished my coffee.",
-    name: "Aisha Karim",
-    role: "Indie author",
-  },
-  {
-    quote:
-      "I added a few coloring books to my shop with no inventory and no design work. That catalogue keeps working without me.",
-    name: "Lena Kowalczyk",
-    role: "Etsy seller",
-  },
-  {
-    quote:
-      "I edit every chapter before exporting, and that is the point. It gives me a draft to react to instead of a blank page.",
-    name: "Rufus Amankwah",
-    role: "Newsletter writer",
-  },
-  {
-    quote:
-      "No design skills, no writing background, and I still ended up with something I am happy to put my name on.",
-    name: "Clara Nyeleti",
-    role: "Nutrition coach",
-  },
-];
-
 export const exportTargets = [
   "Amazon KDP",
   "Apple Books",

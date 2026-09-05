@@ -8,9 +8,11 @@ import {
   Loader2,
   Pencil,
   Sparkles,
+  Square,
 } from "lucide-react";
 import { formats } from "@/lib/content";
 import { takeHandoffIdea } from "@/lib/idea-handoff";
+import { FormatCard } from "@/components/app/format-card";
 import { MarkdownBody } from "@/components/app/markdown-body";
 
 type Step = "idea" | "format" | "titles" | "outline" | "writing" | "done";
@@ -58,6 +60,10 @@ export function ScribeFlow() {
 
   const [bookId, setBookId] = useState<string | null>(null);
   const generation = useRef<AbortController | null>(null);
+  /* Set by the Stop button before aborting, so the abort is reported as a
+     stop the user asked for rather than swallowed as an unmount. */
+  const stopRequested = useRef(false);
+  const [stopped, setStopped] = useState(false);
   const [liveChapters, setLiveChapters] = useState<LiveChapter[]>([]);
   const [activePosition, setActivePosition] = useState(0);
   const [writingLabel, setWritingLabel] = useState("");
@@ -223,51 +229,25 @@ export function ScribeFlow() {
     }
   }
 
-  async function buildBook() {
-    setBusy(true);
-    setError(null);
-    setStatusLine("Scribe is writing your book…");
-    setStep("writing");
-    setLiveChapters(
-      outlineChapters.map((chapter, index) => ({
-        position: index,
-        title: chapter.title,
-        body: "",
-        status: "pending",
-      })),
-    );
-
+  function freshController() {
     generation.current?.abort();
     const controller = new AbortController();
     generation.current = controller;
+    stopRequested.current = false;
+    return controller;
+  }
+
+  /* Streams one generation run for an existing book. A resume calls this
+     again on the same id: the server replays the chapters already written
+     and only pays for the rest. */
+  async function streamGeneration(id: string, controller: AbortController) {
+    setBusy(true);
+    setError(null);
+    setStopped(false);
+    setStatusLine("Scribe is writing your book…");
+    setStep("writing");
 
     try {
-      const createRes = await fetch("/api/books", {
-        method: "POST",
-        signal: controller.signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idea: idea.trim(),
-          formatSlug,
-          title: finalTitle,
-          subtitle,
-          outline: {
-            title: finalTitle,
-            subtitle,
-            chapters: outlineChapters,
-          },
-        }),
-      });
-      const createJson = (await createRes.json()) as {
-        book?: { id: string };
-        error?: string;
-      };
-      if (!createRes.ok || !createJson.book?.id) {
-        throw new Error(createJson.error ?? "Could not create book");
-      }
-      const id = createJson.book.id;
-      setBookId(id);
-
       const generateRes = await fetch(`/api/books/${id}/generate`, {
         method: "POST",
         signal: controller.signal,
@@ -365,13 +345,97 @@ export function ScribeFlow() {
         }
       }
     } catch (err) {
-      // We aborted on purpose — the reader has already left, so say nothing.
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // Unmount: the reader has already left, so say nothing.
+        if (!stopRequested.current) return;
+        // The Stop button: keep the page, tell the user what is saved.
+        setBusy(false);
+        setStopped(true);
+        setWritingLabel("");
+        setLiveChapters((prev) =>
+          prev.map((chapter) =>
+            chapter.status === "writing" ? { ...chapter, status: "pending", body: "" } : chapter,
+          ),
+        );
+        setStatusLine("Generation stopped.");
+        return;
+      }
       setBusy(false);
       setError(err instanceof Error ? err.message : "Something went wrong");
       setStep("outline");
       setStatusLine("Scribe is ready when you are.");
     }
+  }
+
+  function stopGeneration() {
+    stopRequested.current = true;
+    generation.current?.abort();
+  }
+
+  async function resumeGeneration() {
+    if (!bookId) return;
+    await streamGeneration(bookId, freshController());
+  }
+
+  async function buildBook() {
+    // A book that was stopped picks up where it left off; no second copy.
+    if (bookId) {
+      await streamGeneration(bookId, freshController());
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setStatusLine("Scribe is writing your book…");
+    setStep("writing");
+    setLiveChapters(
+      outlineChapters.map((chapter, index) => ({
+        position: index,
+        title: chapter.title,
+        body: "",
+        status: "pending",
+      })),
+    );
+
+    const controller = freshController();
+
+    let id: string;
+    try {
+      const createRes = await fetch("/api/books", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: idea.trim(),
+          formatSlug,
+          title: finalTitle,
+          subtitle,
+          outline: {
+            title: finalTitle,
+            subtitle,
+            chapters: outlineChapters,
+          },
+        }),
+      });
+      const createJson = (await createRes.json()) as {
+        book?: { id: string };
+        error?: string;
+      };
+      if (!createRes.ok || !createJson.book?.id) {
+        throw new Error(createJson.error ?? "Could not create book");
+      }
+      id = createJson.book.id;
+      setBookId(id);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setBusy(false);
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      setStep("outline");
+      setStatusLine("Scribe is ready when you are.");
+      return;
+    }
+
+    await streamGeneration(id, controller);
   }
 
   return (
@@ -522,29 +586,26 @@ export function ScribeFlow() {
                   </div>
 
                   {showFormatPicker ? (
-                    <label className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
-                      Pick the format
-                      <select
-                        value={formatSlug}
-                        onChange={(event) => {
-                          const next = ebookFormats.find(
-                            (f) => f.slug === event.target.value,
-                          );
-                          if (!next) return;
-                          setFormatSlug(next.slug);
-                          setFormatName(next.name);
-                          setCredits(next.credits);
-                          setChapterRange(next.chapters);
-                        }}
-                        className="cursor-pointer rounded-lg border border-border bg-background px-2 py-1 text-sm font-medium text-foreground"
-                      >
-                        {ebookFormats.map((format) => (
-                          <option key={format.slug} value={format.slug}>
-                            {format.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div
+                      role="radiogroup"
+                      aria-label="Pick the format"
+                      className="mt-3 grid gap-2 sm:grid-cols-2"
+                    >
+                      {ebookFormats.map((format) => (
+                        <FormatCard
+                          key={format.slug}
+                          format={format}
+                          selected={format.slug === formatSlug}
+                          disabled={busy}
+                          onSelect={() => {
+                            setFormatSlug(format.slug);
+                            setFormatName(format.name);
+                            setCredits(format.credits);
+                            setChapterRange(format.chapters);
+                          }}
+                        />
+                      ))}
+                    </div>
                   ) : null}
 
                   <p className="mt-2 text-xs text-muted-foreground">
@@ -774,19 +835,50 @@ export function ScribeFlow() {
                 </article>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <button
-                  type="button"
-                  onClick={() => setStep("outline")}
-                  className="font-semibold hover:text-foreground"
+              {stopped ? (
+                <div
+                  role="status"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary-soft px-4 py-3 text-sm"
                 >
-                  Back to outline
-                </button>
-                <span className="inline-flex items-center gap-2 font-semibold">
-                  <Loader2 className="size-3.5 animate-spin" />
-                  {writingLabel || "Scribe is working…"}
-                </span>
-              </div>
+                  <span className="font-medium">
+                    Generation stopped — your finished chapters are saved.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={resumeGeneration}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-extrabold text-on-primary hover:bg-primary-strong"
+                  >
+                    Resume writing
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => setStep("outline")}
+                    className="font-semibold hover:text-foreground"
+                  >
+                    Back to outline
+                  </button>
+                  <span className="inline-flex items-center gap-3 font-semibold">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                      {writingLabel || "Scribe is working…"}
+                    </span>
+                    {busy ? (
+                      <button
+                        type="button"
+                        onClick={stopGeneration}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground hover:border-destructive/40 hover:text-destructive"
+                      >
+                        <Square className="size-3 fill-current" aria-hidden="true" />
+                        Stop
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
+              )}
             </>
           ) : null}
 

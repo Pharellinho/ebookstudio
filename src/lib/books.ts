@@ -1,5 +1,7 @@
 import "server-only";
+import { randomUUID } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { defaultThemeId, themesForFormat } from "@/lib/book-design";
 import type { BookOutline } from "@/lib/generation/prompts";
 
 export type BookRow = {
@@ -13,6 +15,15 @@ export type BookRow = {
   outline: BookOutline | null;
   cover_url: string | null;
   error: string | null;
+  /** Interior accent colour (#rrggbb). Absent until migration 0008 has run. */
+  accent?: string | null;
+  /** Chosen interior theme id. Absent until migration 0009 has run; null = default. */
+  theme?: string | null;
+  /** Path of the generated illustration inside the private covers bucket (migration 0010). */
+  cover_art_url?: string | null;
+  cover_layout?: string | null;
+  cover_art_count?: number | null;
+  cover_author?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -43,19 +54,52 @@ export async function createBook(input: {
   outline?: BookOutline | null;
   status?: BookRow["status"];
 }): Promise<BookRow> {
-  const { data, error } = await admin()
-    .from("books")
-    .insert({
-      user_id: input.userId,
-      idea: input.idea,
-      format_slug: input.formatSlug,
-      title: input.title ?? null,
-      subtitle: input.subtitle ?? null,
-      outline: input.outline ?? null,
-      status: input.status ?? "draft",
-    })
-    .select("*")
-    .single();
+  /* The id is minted here rather than by the database so the interior theme
+     can be derived from it before the insert — same id, same theme, always. */
+  const id = randomUUID();
+  const themeId = defaultThemeId(input.formatSlug, id);
+  const accent =
+    themesForFormat(input.formatSlug).find((theme) => theme.id === themeId)?.accent ??
+    themesForFormat(input.formatSlug)[0].accent;
+
+  type BookInsert = {
+    id: string;
+    user_id: string;
+    idea: string;
+    format_slug: string;
+    title: string | null;
+    subtitle: string | null;
+    outline: BookOutline | null;
+    status: BookRow["status"];
+    accent?: string;
+    theme?: string;
+  };
+  const base: BookInsert = {
+    id,
+    user_id: input.userId,
+    idea: input.idea,
+    format_slug: input.formatSlug,
+    title: input.title ?? null,
+    subtitle: input.subtitle ?? null,
+    outline: input.outline ?? null,
+    status: input.status ?? "draft",
+  };
+
+  const insert = (row: BookInsert) =>
+    admin().from("books").insert(row).select("*").single();
+
+  /* Until migrations 0008/0009 have been applied the columns do not exist.
+     Creating a book must keep working meanwhile: drop the missing column and
+     try again; the values are then derived at read time. */
+  let { data, error } = await insert({ ...base, accent, theme: themeId });
+  if (error && /theme/i.test(error.message)) {
+    console.warn("books.theme column missing — run supabase/migrations/0009_books_theme.sql");
+    ({ data, error } = await insert({ ...base, accent }));
+  }
+  if (error && /accent/i.test(error.message)) {
+    console.warn("books.accent column missing — run supabase/migrations/0008_books_accent.sql");
+    ({ data, error } = await insert(base));
+  }
 
   if (error || !data) throw new Error(error?.message ?? "Failed to create book");
   return data as BookRow;
@@ -96,6 +140,11 @@ export async function updateBook(
     outline: BookOutline | null;
     cover_url: string | null;
     error: string | null;
+    accent: string;
+    theme: string;
+    cover_art_url: string | null;
+    cover_layout: string;
+    cover_author: string | null;
   }>,
 ): Promise<void> {
   const { error } = await admin()
@@ -177,6 +226,18 @@ export async function syncOutlineChapters(
   return data as ChapterRow[];
 }
 
+/** One chapter by id. Callers must check `book_id` against a book the user owns. */
+export async function getChapter(chapterId: string): Promise<ChapterRow | null> {
+  const { data, error } = await admin()
+    .from("chapters")
+    .select("*")
+    .eq("id", chapterId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return (data as ChapterRow | null) ?? null;
+}
+
 export async function updateChapter(
   chapterId: string,
   patch: Partial<{
@@ -191,6 +252,48 @@ export async function updateChapter(
     .eq("id", chapterId);
 
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Takes one of the book's illustration slots before the model is called.
+ * The update only succeeds if the count is still what we read, so two
+ * requests racing for the last slot cannot both get it, and a request that
+ * fails after this point has still spent its slot — the cap is strict.
+ */
+export async function reserveCoverArtSlot(
+  bookId: string,
+  currentCount: number,
+  cap: number,
+): Promise<boolean> {
+  if (currentCount >= cap) return false;
+  const { data, error } = await admin()
+    .from("books")
+    .update({ cover_art_count: currentCount + 1, updated_at: new Date().toISOString() })
+    .eq("id", bookId)
+    .eq("cover_art_count", currentCount)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Deletes a book and, by cascade, its chapters. The owner filter is part of
+ * the DELETE itself, so even a caller that skipped the ownership check could
+ * not remove someone else's book. Returns false when nothing matched.
+ */
+export async function deleteBookForUser(
+  bookId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await admin()
+    .from("books")
+    .delete()
+    .eq("id", bookId)
+    .eq("user_id", userId)
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  return (data?.length ?? 0) > 0;
 }
 
 export async function listBooksForUser(

@@ -12,8 +12,11 @@ export default async function AppLayout({
     redirect("/login");
   }
 
+  /* Column on phones (sidebar on top, content below), row from lg. Without
+     `flex-col` the full-width sidebar sat beside the content and pushed every
+     signed-in page off the right edge of a phone screen. */
   return (
-    <div className="flex min-h-dvh bg-[#f7f5f1] lg:h-dvh lg:flex-row lg:overflow-hidden">
+    <div className="flex min-h-dvh flex-col bg-[#f7f5f1] lg:h-dvh lg:flex-row lg:overflow-hidden">
       <a
         href="#app-main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-on-primary"

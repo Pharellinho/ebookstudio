@@ -120,10 +120,35 @@ export async function POST(request: Request, { params }: Params) {
 
   const encoder = new TextEncoder();
 
+  /* The client closing the tab, pressing Stop, or navigating away must stop
+     the model too: without this the server kept writing — and paying for —
+     the whole book into a connection nobody was reading. Chapters already
+     marked ready stay ready, so a resume replays them instead of buying them
+     again; the book simply goes back to "draft". */
+  let cancelled = false;
+  let closed = false;
+  const stopEarly = async () => {
+    if (cancelled) return;
+    cancelled = true;
+    try {
+      await updateBook(book.id, { status: "draft", error: null });
+    } catch (error) {
+      console.error("could not reset book after cancel", error);
+    }
+  };
+  request.signal.addEventListener("abort", () => void stopEarly(), {
+    once: true,
+  });
+
   const stream = new ReadableStream({
     async start(controller) {
       const send = (event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(sseEncode(event, data)));
+        if (closed || cancelled) return;
+        try {
+          controller.enqueue(encoder.encode(sseEncode(event, data)));
+        } catch {
+          // The consumer is gone; the abort path takes it from here.
+        }
       };
 
       try {
@@ -181,6 +206,12 @@ export async function POST(request: Request, { params }: Params) {
         const previousTitles: string[] = [];
 
         for (let index = 0; index < chapters.length; index++) {
+          // Checked before every chapter so a cancel never buys one more.
+          if (request.signal.aborted || cancelled) {
+            await stopEarly();
+            break;
+          }
+
           const chapter = chapters[index];
           const outlineChapter = outline.chapters[index];
 
@@ -214,6 +245,7 @@ export async function POST(request: Request, { params }: Params) {
             chapterIndex: index,
             chapterTotal: chapters.length,
             previousTitles,
+            signal: request.signal,
           })) {
             body += chunk;
             send("chapter_delta", {
@@ -221,6 +253,15 @@ export async function POST(request: Request, { params }: Params) {
               position: chapter.position,
               delta: chunk,
             });
+          }
+
+          /* An abort closes the OpenAI stream quietly, so the loop above can
+             end with half a chapter. That text is not finished work: put the
+             chapter back to pending so a resume writes it again in full. */
+          if (request.signal.aborted || cancelled) {
+            await updateChapter(chapter.id, { status: "pending", body: "" });
+            await stopEarly();
+            break;
           }
 
           await updateChapter(chapter.id, {
@@ -239,9 +280,20 @@ export async function POST(request: Request, { params }: Params) {
           });
         }
 
+        if (cancelled || request.signal.aborted) {
+          await stopEarly();
+          return;
+        }
+
         await updateBook(book.id, { status: "ready" });
         send("done", { status: "ready", bookId: book.id });
       } catch (error) {
+        // A stop mid-chapter surfaces as an abort error from the OpenAI
+        // stream: that is a cancel, not a failure.
+        if (cancelled || request.signal.aborted) {
+          await stopEarly();
+          return;
+        }
         console.error("generate failed", error);
         const message =
           error instanceof Error ? error.message : "Generation failed";
@@ -252,8 +304,17 @@ export async function POST(request: Request, { params }: Params) {
         }
         send("error", { message });
       } finally {
-        controller.close();
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // Already closed by the cancel.
+        }
       }
+    },
+    cancel() {
+      closed = true;
+      void stopEarly();
     },
   });
 

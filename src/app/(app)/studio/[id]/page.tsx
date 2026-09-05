@@ -3,6 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { StudioReader } from "@/components/app/studio-reader";
 import { getBookForUser, listChapters } from "@/lib/books";
+import { resolveTheme } from "@/lib/book-design";
+import { isCoverLayout } from "@/lib/cover-layouts";
+import { signCoverArt } from "@/lib/covers";
 
 export const metadata: Metadata = {
   title: "Studio",
@@ -20,6 +23,8 @@ export default async function StudioPage({ params }: Props) {
   if (!book) notFound();
 
   const chapters = await listChapters(book.id);
+  const { design, themes, theme } = resolveTheme(book.format_slug, book.theme, book.id);
+  const coverArtUrl = await signCoverArt(book.cover_art_url);
 
   return (
     <StudioReader
@@ -28,6 +33,17 @@ export default async function StudioPage({ params }: Props) {
       subtitle={book.subtitle}
       idea={book.idea}
       status={book.status}
+      design={design}
+      themes={themes}
+      initialThemeId={theme.id}
+      cover={{
+        artUrl: coverArtUrl,
+        artCount: book.cover_art_count ?? 0,
+        layout: isCoverLayout(book.cover_layout) ? book.cover_layout : "centered",
+        title: book.title ?? "Untitled book",
+        subtitle: book.subtitle ?? "",
+        author: book.cover_author ?? "",
+      }}
       chapters={chapters.map((chapter) => ({
         id: chapter.id,
         position: chapter.position,
