@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getBookForUser, getChapter, updateChapter } from "@/lib/books";
-import { site } from "@/lib/site";
+import { originAllowed } from "@/lib/request-origin";
 
 type Params = { params: Promise<{ id: string; chapterId: string }> };
 
@@ -12,35 +12,6 @@ export const CHAPTER_BODY_MAX = 200_000;
 /* Same definition of "still running" as the generate route: a book that has
    not been touched for this long is a dead run, and editing it is safe. */
 const STALE_AFTER_MS = 5 * 60 * 1000;
-
-function originAllowed(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  const isProd =
-    process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
-
-  if (!origin) {
-    const fetchSite = request.headers.get("sec-fetch-site");
-    if (fetchSite === "cross-site") return false;
-    return true;
-  }
-
-  const allowed = new Set(
-    [
-      site.url,
-      `https://${site.domain}`,
-      `https://www.${site.domain}`,
-      ...(!isProd
-        ? ["http://localhost:3000", "http://127.0.0.1:3000"]
-        : []),
-    ].map((value) => value.replace(/\/$/, "")),
-  );
-
-  try {
-    return allowed.has(new URL(origin).origin);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * PATCH { body: string } → { updatedAt }

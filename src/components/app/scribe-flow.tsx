@@ -33,6 +33,29 @@ const EXAMPLES = [
   "A calm evening routine for exhausted parents",
 ];
 
+/* Server routes answer with short codes. Readers get sentences instead. */
+const ERROR_TEXT: Record<string, string> = {
+  openai_not_configured:
+    "Scribe's writing model isn't connected on this server yet. This is a setup issue on our side, not something you did.",
+  rate_limited: "You've hit the hourly limit. Give it an hour and try again.",
+  already_generating: "This book is still being written. Wait for it to finish, or stop it first.",
+  not_found: "This book could not be found. It may have been deleted.",
+  unauthorized: "Your session has expired. Sign in again to continue.",
+  forbidden: "This request was blocked. Reload the page and try again.",
+  invalid_json: "Something went wrong sending your idea. Try again.",
+  invalid_idea: "Tell Scribe a bit more — at least a sentence, and no more than 1200 characters.",
+  invalid_format: "That format is not available. Pick another one.",
+  invalid_outline: "The outline could not be read. Go back a step and try again.",
+};
+
+function friendlyError(raw: unknown): string {
+  const code = raw instanceof Error ? raw.message : typeof raw === "string" ? raw : "";
+  if (ERROR_TEXT[code]) return ERROR_TEXT[code];
+  // A code we do not know (snake_case, no spaces) must not reach the screen raw.
+  if (/^[a-z0-9_]+$/.test(code)) return "Something went wrong on our side. Try again in a moment.";
+  return code || "Something went wrong. Try again in a moment.";
+}
+
 export function ScribeFlow() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("idea");
@@ -120,7 +143,7 @@ export function ScribeFlow() {
       setChapterRange(json.chapters ?? "5–7");
       setStep("format");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(friendlyError(err));
       setStatusLine("Scribe is listening.");
     } finally {
       setBusy(false);
@@ -152,7 +175,7 @@ export function ScribeFlow() {
       setSelectedTitle(json.titles[0].title);
       setStep("titles");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -182,7 +205,7 @@ export function ScribeFlow() {
       setSelectedTitle(json.titles[0].title);
       setShowCustomTitle(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -223,7 +246,7 @@ export function ScribeFlow() {
       setSelectedTitle(json.outline.title);
       setStep("outline");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -361,7 +384,7 @@ export function ScribeFlow() {
         return;
       }
       setBusy(false);
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(friendlyError(err));
       setStep("outline");
       setStatusLine("Scribe is ready when you are.");
     }
@@ -429,7 +452,7 @@ export function ScribeFlow() {
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       setBusy(false);
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(friendlyError(err));
       setStep("outline");
       setStatusLine("Scribe is ready when you are.");
       return;

@@ -7,36 +7,10 @@ import {
   suggestTitles,
 } from "@/lib/generation/scribe";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { site } from "@/lib/site";
+import { originAllowed } from "@/lib/request-origin";
 
 const LIMIT = 40;
 const WINDOW_MS = 60 * 60 * 1000;
-
-function originAllowed(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  const isProd =
-    process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
-  if (!origin) {
-    const fetchSite = request.headers.get("sec-fetch-site");
-    if (fetchSite === "cross-site") return false;
-    return true;
-  }
-  const allowed = new Set(
-    [
-      site.url,
-      `https://${site.domain}`,
-      `https://www.${site.domain}`,
-      ...(!isProd
-        ? ["http://localhost:3000", "http://127.0.0.1:3000"]
-        : []),
-    ].map((v) => v.replace(/\/$/, "")),
-  );
-  try {
-    return allowed.has(new URL(origin).origin);
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(request: Request) {
   if (!originAllowed(request)) {

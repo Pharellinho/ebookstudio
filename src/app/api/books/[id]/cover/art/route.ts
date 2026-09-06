@@ -7,7 +7,7 @@ import { coverArtPrompt, generateCoverArt } from "@/lib/generation/cover-art";
 import { openaiConfigured } from "@/lib/generation/openai";
 import { getFormat } from "@/lib/generation/prompts";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { site } from "@/lib/site";
+import { originAllowed } from "@/lib/request-origin";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -16,35 +16,6 @@ export const maxDuration = 60;
 
 const ART_LIMIT = 10;
 const ART_WINDOW_MS = 60 * 60 * 1000;
-
-function originAllowed(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  const isProd =
-    process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
-
-  if (!origin) {
-    const fetchSite = request.headers.get("sec-fetch-site");
-    if (fetchSite === "cross-site") return false;
-    return true;
-  }
-
-  const allowed = new Set(
-    [
-      site.url,
-      `https://${site.domain}`,
-      `https://www.${site.domain}`,
-      ...(!isProd
-        ? ["http://localhost:3000", "http://127.0.0.1:3000"]
-        : []),
-    ].map((value) => value.replace(/\/$/, "")),
-  );
-
-  try {
-    return allowed.has(new URL(origin).origin);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * POST { direction? } → { artUrl, artCount, remaining }
