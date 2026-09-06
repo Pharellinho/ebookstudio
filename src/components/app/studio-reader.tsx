@@ -128,7 +128,7 @@ export function StudioReader({
                   ? "Click into the text to edit. Changes save on their own."
                   : mode === "preview"
                     ? "How this chapter reads as a book."
-                    : "The illustration is drawn by AI; the type is set by the studio."}
+                    : "Three complete covers per run. Pick the one you want."}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -181,12 +181,7 @@ export function StudioReader({
 
           {mode === "cover" ? (
             <div className="mt-6">
-              <CoverStudio
-                bookId={bookId}
-                accent={theme.accent}
-                initial={{ ...cover, title: bookTitle }}
-                onTitleChange={setBookTitle}
-              />
+              <CoverStudio bookId={bookId} initial={cover} />
             </div>
           ) : null}
 

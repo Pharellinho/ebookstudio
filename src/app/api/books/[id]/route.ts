@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { deleteBookForUser, getBookForUser, listChapters, updateBook } from "@/lib/books";
 import { resolveTheme, themesForFormat } from "@/lib/book-design";
-import { isCoverLayout } from "@/lib/cover-layouts";
+import { COVER_AUTHOR_MAX } from "@/lib/cover-rules";
 import { originAllowed } from "@/lib/request-origin";
 
 type Params = { params: Promise<{ id: string }> };
@@ -85,7 +85,7 @@ export async function DELETE(request: Request, { params }: Params) {
 }
 
 /**
- * PATCH { theme?, title?, subtitle?, cover_layout?, cover_author? }
+ * PATCH { theme?, title?, subtitle?, cover_author? }
  * Cheap, text-only edits the studio makes while the author types. None of
  * them touch a model. The accent column follows the theme so anything that
  * reads only `accent` stays right.
@@ -140,15 +140,8 @@ export async function PATCH(request: Request, { params }: Params) {
     patch.subtitle = input.subtitle.trim() || null;
     echo.subtitle = patch.subtitle;
   }
-  if (input.cover_layout !== undefined) {
-    if (!isCoverLayout(input.cover_layout)) {
-      return NextResponse.json({ error: "invalid_layout" }, { status: 400 });
-    }
-    patch.cover_layout = input.cover_layout;
-    echo.cover_layout = input.cover_layout;
-  }
   if (input.cover_author !== undefined) {
-    if (typeof input.cover_author !== "string" || input.cover_author.length > 80) {
+    if (typeof input.cover_author !== "string" || input.cover_author.length > COVER_AUTHOR_MAX) {
       return NextResponse.json({ error: "invalid_author" }, { status: 400 });
     }
     patch.cover_author = input.cover_author.trim() || null;

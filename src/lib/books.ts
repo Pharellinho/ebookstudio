@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { defaultThemeId, themesForFormat } from "@/lib/book-design";
+import type { CoverCandidate } from "@/lib/cover-rules";
 import type { BookOutline } from "@/lib/generation/prompts";
 
 export type BookRow = {
@@ -19,11 +20,15 @@ export type BookRow = {
   accent?: string | null;
   /** Chosen interior theme id. Absent until migration 0009 has run; null = default. */
   theme?: string | null;
-  /** Path of the generated illustration inside the private covers bucket (migration 0010). */
+  /** Legacy columns from migration 0010; unused since full covers replaced the composed ones. */
   cover_art_url?: string | null;
   cover_layout?: string | null;
   cover_art_count?: number | null;
   cover_author?: string | null;
+  /** Every generated cover (paths in the private bucket), migration 0011. */
+  cover_candidates?: CoverCandidate[] | null;
+  /** Three-cover runs spent on this book. */
+  cover_runs?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -142,9 +147,8 @@ export async function updateBook(
     error: string | null;
     accent: string;
     theme: string;
-    cover_art_url: string | null;
-    cover_layout: string;
     cover_author: string | null;
+    cover_candidates: CoverCandidate[];
   }>,
 ): Promise<void> {
   const { error } = await admin()
@@ -255,22 +259,22 @@ export async function updateChapter(
 }
 
 /**
- * Takes one of the book's illustration slots before the model is called.
- * The update only succeeds if the count is still what we read, so two
- * requests racing for the last slot cannot both get it, and a request that
- * fails after this point has still spent its slot — the cap is strict.
+ * Spends one of the book's cover runs before any model call. The update only
+ * succeeds if the count is still what we read, so two requests racing for the
+ * last run cannot both get it, and a run that fails after this point has
+ * still been spent — the cap is strict.
  */
-export async function reserveCoverArtSlot(
+export async function reserveCoverRun(
   bookId: string,
-  currentCount: number,
+  currentRuns: number,
   cap: number,
 ): Promise<boolean> {
-  if (currentCount >= cap) return false;
+  if (currentRuns >= cap) return false;
   const { data, error } = await admin()
     .from("books")
-    .update({ cover_art_count: currentCount + 1, updated_at: new Date().toISOString() })
+    .update({ cover_runs: currentRuns + 1, updated_at: new Date().toISOString() })
     .eq("id", bookId)
-    .eq("cover_art_count", currentCount)
+    .eq("cover_runs", currentRuns)
     .select("id");
   if (error) throw new Error(error.message);
   return (data?.length ?? 0) > 0;
