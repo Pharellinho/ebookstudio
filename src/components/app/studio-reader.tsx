@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BookImage, Eye, Palette, PenLine } from "lucide-react";
+import { ArrowRight, BookImage, Palette, PenLine } from "lucide-react";
 import { BookCardActions } from "@/components/app/book-card-actions";
 import { ChapterEditor } from "@/components/app/chapter-editor";
 import { ResumeIdeaLink } from "@/components/app/resume-idea-link";
-import { BookPage } from "@/components/book/book-page";
 import { ThemePicker } from "@/components/app/theme-picker";
 import { CoverStudio, type CoverState } from "@/components/app/cover-studio";
 import type { BookDesign, BookTheme } from "@/lib/book-design";
@@ -49,11 +48,11 @@ export function StudioReader({
   const [bookTitle, setBookTitle] = useState(title);
   const [active, setActive] = useState(0);
   const chapter = chapters[active] ?? chapters[0];
-  const [mode, setMode] = useState<"edit" | "preview" | "cover">("edit");
+  const [mode, setMode] = useState<"edit" | "cover">("edit");
   const [themeId, setThemeId] = useState(initialThemeId);
   const [pickingTheme, setPickingTheme] = useState(false);
   const theme = themes.find((item) => item.id === themeId) ?? themes[0];
-  /* What is in the editor right now, saved or not, so Preview never lags. */
+  /* What is in the editor right now, saved or not, so the theme thumbnails never lag. */
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   /* The markdown the server last confirmed for each chapter. Switching
@@ -116,37 +115,10 @@ export function StudioReader({
         </aside>
 
         <article className="min-h-[70vh] rounded-2xl border-2 border-foreground bg-background p-6 shadow-sm sm:p-8 lg:p-10">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h2 className="font-display text-2xl font-bold">
-                {mode === "cover"
-                  ? "Cover"
-                  : `${chapter?.position != null ? `${chapter.position + 1}. ` : ""}${chapter?.title ?? "Chapter"}`}
-              </h2>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                {mode === "edit"
-                  ? "Click into the text to edit. Changes save on their own."
-                  : mode === "preview"
-                    ? "How this chapter reads as a book."
-                    : "Three complete covers per run. Pick the one you want."}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              aria-pressed={pickingTheme}
-              onClick={() => {
-                setPickingTheme((open) => !open);
-                setMode("preview");
-              }}
-              className={cn(
-                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-xs font-semibold transition-colors",
-                pickingTheme ? "bg-primary-soft text-primary-strong" : "bg-background text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Palette className="size-3.5" aria-hidden="true" />
-              Theme
-            </button>
+          {/* One toolbar, always in the same place: modes on the left, the
+              theme and the way forward on the right. The chapter title sits
+              under it, so a long title can never push the controls around. */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
             <div
               role="group"
               aria-label="Studio mode"
@@ -155,7 +127,6 @@ export function StudioReader({
               {(
                 [
                   { value: "edit", label: "Edit", icon: PenLine },
-                  { value: "preview", label: "Preview", icon: Eye },
                   { value: "cover", label: "Cover", icon: BookImage },
                 ] as const
               ).map((item) => (
@@ -176,13 +147,49 @@ export function StudioReader({
                 </button>
               ))}
             </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                aria-pressed={pickingTheme}
+                onClick={() => {
+                  setPickingTheme((open) => !open);
+                  setMode("edit");
+                }}
+                className={cn(
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-xs font-semibold transition-colors",
+                  pickingTheme ? "bg-primary-soft text-primary-strong" : "bg-background text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Palette className="size-3.5" aria-hidden="true" />
+                Theme
+              </button>
+              <Link
+                href={`/studio/${bookId}/preview`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-extrabold text-on-primary hover:bg-primary-strong"
+              >
+                Preview the book
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </Link>
             </div>
+          </div>
+
+          <div className="mt-5">
+            <h2 className="font-display text-2xl font-bold">
+              {mode === "cover"
+                ? "Cover"
+                : `${chapter?.position != null ? `${chapter.position + 1}. ` : ""}${chapter?.title ?? "Chapter"}`}
+            </h2>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {mode === "edit"
+                ? "Click into the text to edit. Changes save on their own."
+                : "Three complete covers per run. Pick the one you want."}
+            </p>
           </div>
 
           {/* Kept mounted and only hidden: covers generated in this session
               must survive a trip to Edit or Preview and back. */}
           <div className="mt-6" hidden={mode !== "cover"}>
-            <CoverStudio bookId={bookId} initial={cover} />
+            <CoverStudio bookId={bookId} title={bookTitle} initial={cover} />
           </div>
 
           {chapter && pickingTheme && mode !== "cover" ? (
@@ -221,20 +228,7 @@ export function StudioReader({
                   }
                 />
               </div>
-              {mode === "preview" ? (
-                <div className="mt-6">
-                  <BookPage
-                    markdown={drafts[chapter.id] ?? bodies[chapter.id] ?? chapter.body}
-                    design={design}
-                    theme={theme}
-                    chapterNumber={chapter.position + 1}
-                    chapterTitle={chapter.title}
-                    bookTitle={bookTitle}
-                    folio={chapter.position + 1}
-                    className="rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.06),0_16px_40px_-16px_rgba(0,0,0,0.25)]"
-                  />
-                </div>
-              ) : null}
+
             </>
           ) : null}
         </article>

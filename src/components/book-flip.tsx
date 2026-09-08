@@ -3,8 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { PageFlip } from "page-flip";
-import type { PageFlipSettings } from "page-flip";
+import { FlipDeck, type DeckControls } from "@/components/book/flip-deck";
 import type { SampleBook, SamplePage } from "@/lib/samples";
 
 const SLIDE_WIDTH = "min(20rem, 78vw)";
@@ -321,161 +320,6 @@ function DesktopBookCarousel({ books }: { books: SampleBook[] }) {
   );
 }
 
-/* Page turning is StPageFlip's job from here down. It takes real DOM nodes and
-   moves them into its own structure, so FlipDeck is the only place allowed to
-   touch the page elements — everything above (carousel, autoplay) and every
-   page component below is unchanged. */
-
-const FLIP_SETTINGS = {
-  /* 2:3, the ratio the deck has always used (aspect-2/3). With size "stretch"
-     these two numbers are the ratio, not fixed pixels. */
-  width: 320,
-  height: 480,
-  size: "stretch",
-  /* Portrait needs blockWidth < minWidth * 2, and the slide is at most 320px,
-     so 200 keeps the deck on a single page at every breakpoint. */
-  minWidth: 200,
-  maxWidth: 420,
-  minHeight: 300,
-  maxHeight: 630,
-  autoSize: true,
-  usePortrait: true,
-  /* showCover exists only to turn page 0 into a rigid board cover. This deck
-     wants every page to curl alike, so it stays off — see the density pass
-     after loadFromHTML for the rest of the story. */
-  showCover: false,
-  drawShadow: true,
-  maxShadowOpacity: 0.5,
-  flippingTime: 700,
-  swipeDistance: 24,
-  mobileScrollSupport: true,
-  clickEventForward: true,
-  useMouseEvents: true,
-} satisfies Partial<PageFlipSettings>;
-
-type DeckControls = { next: () => void; prev: () => void };
-
-/** Hands the page elements to StPageFlip and takes them back on teardown. */
-function FlipDeck({
-  book,
-  controls,
-  onIndexChange,
-  onInteract,
-}: {
-  book: SampleBook;
-  controls: React.RefObject<DeckControls | null>;
-  onIndexChange: (index: number) => void;
-  onInteract: () => void;
-}) {
-  const host = useRef<HTMLDivElement>(null);
-  const shelf = useRef<HTMLDivElement>(null);
-  const handlers = useRef({ onIndexChange, onInteract });
-  const [reduceMotion] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-
-  useEffect(() => {
-    handlers.current = { onIndexChange, onInteract };
-  });
-
-  useEffect(() => {
-    const mount = host.current;
-    const source = shelf.current;
-    if (!mount || !source) return;
-
-    const pages = Array.from(
-      source.querySelectorAll<HTMLElement>("[data-flip-page]"),
-    );
-    if (pages.length === 0) return;
-
-    /* destroy() removes the element it was given, so StPageFlip gets a plain
-       div of its own instead of one React is holding a ref to. */
-    const block = document.createElement("div");
-    mount.appendChild(block);
-
-    const flip = new PageFlip(block, {
-      ...FLIP_SETTINGS,
-      /* Reduced motion: no corner peek, no flip on click. The pointer is also
-         sealed off in CSS below, so only the arrow buttons turn pages — and
-         they jump instead of animating. */
-      showPageCorners: !reduceMotion,
-      disableFlipByClick: reduceMotion,
-      flippingTime: reduceMotion ? 1 : FLIP_SETTINGS.flippingTime,
-    });
-
-    flip.on("flip", (event) => handlers.current.onIndexChange(event.data));
-    flip.on("changeState", (event) => {
-      if (event.data !== "read") handlers.current.onInteract();
-    });
-
-    flip.loadFromHTML(pages);
-
-    /* Building its landscape spread, StPageFlip marks the cover — and, on an
-       odd page count, the last page — "hard", which turns them into stiff
-       board instead of paper. Portrait never uses that spread, so put every
-       page back to soft and the whole book bends the same way. */
-    for (let position = 0; position < flip.getPageCount(); position += 1) {
-      const page = flip.getPage(position);
-      page.setDensity("soft");
-      page.setDrawingDensity("soft");
-    }
-
-    controls.current = reduceMotion
-      ? {
-          next: () => flip.turnToNextPage(),
-          prev: () => flip.turnToPrevPage(),
-        }
-      : { next: () => flip.flipNext(), prev: () => flip.flipPrev() };
-
-    return () => {
-      controls.current = null;
-      flip.destroy();
-
-      /* StPageFlip starts a requestAnimationFrame loop and never calls
-         cancelAnimationFrame, so a destroyed instance would keep drawing
-         detached nodes for the life of the tab. Emptying the page collection
-         releases the DOM and blanking the frame callback stops the work. */
-      flip.getPageCollection().destroy();
-      flip.getRender().render = () => {};
-
-      block.remove();
-
-      /* The pages were moved into StPageFlip's DOM and detached with it. Give
-         them back so React unmounts the tree it thinks it still owns. */
-      for (const page of pages) {
-        page.removeAttribute("style");
-        page.className = "";
-        source.appendChild(page);
-      }
-    };
-  }, [book, controls, reduceMotion]);
-
-  return (
-    <div className="relative w-full">
-      {/* Where the pages are rendered before StPageFlip moves them out. Kept
-          transparent rather than display:none so the images still load. */}
-      <div
-        ref={shelf}
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden opacity-0"
-      >
-        {book.pages.map((page, position) => (
-          <div key={position} data-flip-page="" data-density="soft">
-            <PageCard page={page} book={book} fill />
-          </div>
-        ))}
-      </div>
-
-      <div
-        ref={host}
-        className={reduceMotion ? "pointer-events-none" : "cursor-grab"}
-      />
-    </div>
-  );
-}
-
 function BookFlip({
   book,
   interactive,
@@ -514,7 +358,9 @@ function BookFlip({
         {live ? (
           <FlipDeck
             key={book.id}
-            book={book}
+            pages={book.pages.map((page, position) => (
+              <PageCard key={position} page={page} book={book} fill />
+            ))}
             controls={controls}
             onIndexChange={setIndex}
             onInteract={onInteract}

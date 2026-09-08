@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
+  BookImage,
   Check,
   Loader2,
   Pencil,
@@ -26,6 +27,15 @@ type LiveChapter = {
   body: string;
   status: "pending" | "writing" | "ready";
 };
+
+/* The welcome cover has its own little life, separate from the chapters:
+   it starts with them, and whether it arrives or fails changes nothing
+   about the writing. */
+type CoverStatus = "idle" | "drawing" | "ready" | "failed";
+
+/* Once the last chapter is in, wait this long at most for a cover still
+   being drawn before opening the studio anyway. */
+const COVER_GRACE_MS = 90_000;
 
 const EXAMPLES = [
   "A step-by-step guide to growing your first vegetable garden",
@@ -91,6 +101,10 @@ export function ScribeFlow() {
   const [activePosition, setActivePosition] = useState(0);
   const [writingLabel, setWritingLabel] = useState("");
 
+  const coverRequest = useRef<AbortController | null>(null);
+  const [coverStatus, setCoverStatus] = useState<CoverStatus>("idle");
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+
   const ebookFormats = useMemo(
     () => formats.filter((f) => f.slug !== "coloring-book"),
     [],
@@ -99,7 +113,26 @@ export function ScribeFlow() {
   /* Closing the tab or navigating away used to leave the server writing into a
      connection nobody was reading, and the book sat in "writing" for good.
      Aborting ends the request so the book can be picked up again. */
-  useEffect(() => () => generation.current?.abort(), []);
+  useEffect(
+    () => () => {
+      generation.current?.abort();
+      coverRequest.current?.abort();
+    },
+    [],
+  );
+
+  /* The book is written. Open the studio as soon as the cover is settled —
+     arrived or given up — so the reader lands on both at once. A cover that
+     drags on does not hold the book hostage: the grace period ends the wait. */
+  useEffect(() => {
+    if (step !== "done" || !bookId) return;
+    if (coverStatus !== "drawing") {
+      router.push(`/studio/${bookId}`);
+      return;
+    }
+    const timer = window.setTimeout(() => router.push(`/studio/${bookId}`), COVER_GRACE_MS);
+    return () => window.clearTimeout(timer);
+  }, [step, coverStatus, bookId, router]);
 
   /* An idea typed on the landing page waits in sessionStorage while the
      visitor signs up. Take it once, then it is gone — it never travels in a
@@ -359,7 +392,7 @@ export function ScribeFlow() {
             setStep("done");
             setStatusLine("Scribe finished your book.");
             setBusy(false);
-            router.push(`/studio/${id}`);
+            setWritingLabel("");
           }
 
           /* The server writes a few chapters per call; it asks us to call
@@ -406,6 +439,33 @@ export function ScribeFlow() {
     generation.current?.abort();
   }
 
+  /* The welcome cover: one cover drawn from the outline alone, in a request
+     of its own, while the chapters are being written. Its failure is its
+     own: it never touches the writing, its error never reaches `error`. */
+  async function startWelcomeCover(id: string) {
+    if (coverStatus === "drawing" || coverStatus === "ready") return;
+    coverRequest.current?.abort();
+    const controller = new AbortController();
+    coverRequest.current = controller;
+    setCoverStatus("drawing");
+    try {
+      const res = await fetch(`/api/books/${id}/cover/welcome`, {
+        method: "POST",
+        signal: controller.signal,
+      });
+      const json = (await res.json().catch(() => null)) as {
+        candidate?: { url?: string | null };
+        error?: string;
+      } | null;
+      if (!res.ok || !json?.candidate?.url) throw new Error(json?.error ?? "cover_failed");
+      setCoverUrl(json.candidate.url);
+      setCoverStatus("ready");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setCoverStatus("failed");
+    }
+  }
+
   async function resumeGeneration() {
     if (!bookId) return;
     await streamGeneration(bookId, freshController());
@@ -414,6 +474,7 @@ export function ScribeFlow() {
   async function buildBook() {
     // A book that was stopped picks up where it left off; no second copy.
     if (bookId) {
+      if (coverStatus !== "ready") void startWelcomeCover(bookId);
       await streamGeneration(bookId, freshController());
       return;
     }
@@ -469,6 +530,8 @@ export function ScribeFlow() {
       return;
     }
 
+    // Two independent requests from here: the cover and the chapters.
+    void startWelcomeCover(id);
     await streamGeneration(id, controller);
   }
 
@@ -813,6 +876,8 @@ export function ScribeFlow() {
               </p>
 
               <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+                <div className="space-y-3">
+                <CoverSlot status={coverStatus} url={coverUrl} title={finalTitle} />
                 <ol className="space-y-2 rounded-2xl border border-border/80 p-3 text-sm">
                   <li className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
                     <Check className="size-3.5" /> Read your idea
@@ -848,6 +913,7 @@ export function ScribeFlow() {
                     </li>
                   ))}
                 </ol>
+                </div>
 
                 <article className="min-h-72 rounded-2xl border border-foreground/80 bg-[#fffdf8] p-5">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-primary-strong">
@@ -869,7 +935,36 @@ export function ScribeFlow() {
                 </article>
               </div>
 
-              {stopped ? (
+              {step === "done" ? (
+                <div
+                  role="status"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary-soft px-4 py-3 text-sm"
+                >
+                  <span className="inline-flex items-center gap-2 font-medium">
+                    {coverStatus === "drawing" ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                        Your book is written. Finishing the cover…
+                      </>
+                    ) : (
+                      <>
+                        <Check className="size-3.5 text-emerald-700" aria-hidden="true" />
+                        Your book is ready. Opening the studio…
+                      </>
+                    )}
+                  </span>
+                  {bookId ? (
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/studio/${bookId}`)}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-extrabold text-on-primary hover:bg-primary-strong"
+                    >
+                      Open the studio
+                      <ArrowRight className="size-3.5" aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
+              ) : stopped ? (
                 <div
                   role="status"
                   className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary-soft px-4 py-3 text-sm"
@@ -922,6 +1017,67 @@ export function ScribeFlow() {
             </p>
           ) : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The cover's place beside the chapters: a waiting frame while it is drawn,
+ * the picture the moment it lands. This is the best moment of the product,
+ * so the arrival gets a little ceremony and a failure gets a whisper.
+ */
+function CoverSlot({
+  status,
+  url,
+  title,
+}: {
+  status: CoverStatus;
+  url: string | null;
+  title: string;
+}) {
+  const [loaded, setLoaded] = useState(false);
+
+  if (status === "ready" && url) {
+    return (
+      <figure className="rounded-2xl border border-border/80 p-3">
+        <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-muted">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt={`Cover of ${title}`}
+            onLoad={() => setLoaded(true)}
+            className={`h-full w-full object-cover transition-all duration-700 ease-out ${
+              loaded ? "scale-100 opacity-100" : "scale-[1.04] opacity-0"
+            }`}
+          />
+        </div>
+        <figcaption className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+          <Check className="size-3.5" aria-hidden="true" />
+          Your cover is here
+        </figcaption>
+      </figure>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <div className="rounded-2xl border border-border/80 p-3">
+        <div className="flex aspect-[2/3] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-surface px-3 text-center">
+          <BookImage className="size-5 text-muted-foreground/60" aria-hidden="true" />
+          <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+            The cover didn&apos;t come through. You can draw one in the studio.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-border/80 p-3" role="status" aria-live="polite">
+      <div className="flex aspect-[2/3] animate-pulse flex-col items-center justify-center rounded-lg bg-primary-soft px-3 text-center">
+        <BookImage className="size-5 text-primary-strong" aria-hidden="true" />
+        <p className="mt-2 text-[11px] font-semibold text-primary-strong">Drawing your cover…</p>
       </div>
     </div>
   );

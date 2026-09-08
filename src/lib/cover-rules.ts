@@ -10,4 +10,14 @@ export type CoverCandidate = {
   createdAt: string;
   /** Which of the three art directions produced it. */
   variant: string;
+  /** The title drawn into the picture. A renamed book makes this cover stale. */
+  title?: string;
+  /** The one cover drawn for free while the chapters were being written. */
+  welcome?: boolean;
 };
+
+/** True when the title drawn on a cover no longer matches the book's title. */
+export function coverTitleStale(candidate: Pick<CoverCandidate, "title">, bookTitle: string): boolean {
+  if (!candidate.title) return false;
+  return candidate.title.trim().toLowerCase() !== bookTitle.trim().toLowerCase();
+}

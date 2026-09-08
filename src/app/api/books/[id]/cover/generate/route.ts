@@ -8,7 +8,14 @@ import {
   type CoverCandidate,
 } from "@/lib/cover-rules";
 import { signCoverArt, uploadCoverArt } from "@/lib/covers";
-import { DEV_SINGLE_VARIANT, coverBrief, coverDirections, coverPrompt, generateCover } from "@/lib/generation/cover-art";
+import {
+  DEV_SINGLE_VARIANT,
+  coverBrief,
+  coverDirections,
+  coverPrompt,
+  fallbackCoverBrief,
+  generateCover,
+} from "@/lib/generation/cover-art";
 import { openaiConfigured } from "@/lib/generation/openai";
 import { getFormat } from "@/lib/generation/prompts";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -115,15 +122,7 @@ export async function POST(request: Request, { params }: Params) {
     });
   } catch (error) {
     console.error("cover brief failed", error);
-    brief = {
-      register: "concept",
-      subject: book.idea,
-      motifs: [book.idea],
-      paletteCore: "the colours the subject is recognised by",
-      palettes: ["the subject's colours, saturated", "the subject's colours, dark and deep", "the subject's colours, light"],
-      mood: "specific, considered",
-      coverSubtitle: book.subtitle ? book.subtitle.split(/\s+/).slice(0, 6).join(" ") : null,
-    };
+    brief = fallbackCoverBrief({ idea: book.idea, subtitle: book.subtitle });
   }
 
   const directions = coverDirections(brief);
@@ -140,7 +139,7 @@ export async function POST(request: Request, { params }: Params) {
       const variant = `${brief.register}/${directions[index].id}`;
       const png = await generateCover(prompt, variant);
       const path = await uploadCoverArt(userId, book.id, png);
-      return { path, createdAt: new Date().toISOString(), variant };
+      return { path, createdAt: new Date().toISOString(), variant, title };
     }),
   );
 
@@ -160,6 +159,9 @@ export async function POST(request: Request, { params }: Params) {
 
   const candidates = [...(book.cover_candidates ?? []), ...fresh];
   await updateBook(book.id, { cover_candidates: candidates });
+  // A book that had no cover gets the first of the run; the author can still pick another.
+  const chosen = book.cover_url ?? fresh[0].path;
+  if (!book.cover_url) await updateBook(book.id, { cover_url: chosen });
 
   const signed = await Promise.all(
     candidates.map(async (candidate) => ({
@@ -170,7 +172,7 @@ export async function POST(request: Request, { params }: Params) {
 
   return NextResponse.json({
     candidates: signed,
-    chosen: book.cover_url ?? null,
+    chosen,
     runs: runsNow,
     remaining: COVER_RUN_CAP - runsNow,
     partial: fresh.length < COVERS_PER_RUN,

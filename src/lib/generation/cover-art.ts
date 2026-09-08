@@ -243,8 +243,14 @@ const TASTE =
   "Taste: the restraint of a real publisher's cover. Controlled colour, asymmetric composition, breathing room, subtle print grain. Everything is sharp: crisp letter edges, no blur, no haze, no glow or halo around type, no soft gradients standing in for a background. Avoid glossy 3D renders, neon or over-saturated colour, lens flares, hyper-detailed clutter, glowing edges, fantasy-art gloss, stock-photo smiles. No literal clichés: no money bags, coins, dollar signs, light bulbs, rockets, handshakes, trophies or arrows.";
 
 /* Universal rules, the same for every register. */
+/* A phone filming a woman from the front cannot show her back on its
+   screen. The picture must obey its own physics, and the cheapest way to
+   make that true is to keep every screen and reflection empty. */
+const COHERENCE =
+  "PHYSICAL COHERENCE, NON-NEGOTIABLE: no device in the picture is filming, photographing or mirroring the person. Every phone, laptop, monitor, camera and TV screen is switched OFF: a plain dark glass, showing nothing at all — no picture, no interface, no second copy of the person or the room. If a phone must appear, show its back or lay it flat with the screen dark. No mirror or glossy surface reflects the person. Nothing in the image may contradict another part of it.";
+
 const UNIVERSAL =
-  "The author's name is set small, at about one fifth of the title's letter height — present, never competing. No other words, numbers, logos, badges, stickers, blurbs or watermarks anywhere — and that includes props: any paper, screen, sign, label or board in the picture is blank, with no writing on it at all. Vertical portrait format.";
+  "If an author's name is given it is set small, at about one fifth of the title's letter height — present, never competing. No other words, numbers, logos, badges, stickers, blurbs or watermarks anywhere — and that includes props: any paper, screen, sign, label or board in the picture is blank, with no writing on it at all. Vertical portrait format.";
 
 /**
  * The art director's brief, worked out by the text model before any picture
@@ -321,7 +327,7 @@ Examples:
 
 Return ONLY JSON:
 {"register":"...","subject":"...","activity":"...","metaphor":"...","why_abstract":"...","motifs":["...","...","...","...","..."],"palette_core":"...","palettes":["...","...","..."],"mood":"...","coverSubtitle":"..."}
-- subject: one sentence saying what the cover shows in this register's terms — the action for "action", the object for "object", the space for "place", the single metaphor for "concept", the typographic idea for "institutional", the line-art subject for "activity-book".
+- subject: never a scene that needs a screen, camera or mirror to show the person (filming oneself, a video call, a selfie): the image model draws those wrong. Show the person doing the physical part of the activity instead, with any screen dark. One sentence saying what the cover shows in this register's terms — the action for "action", the object for "object", the space for "place", the single metaphor for "concept", the typographic idea for "institutional", the line-art subject for "activity-book".
 - activity: ONLY for "action" — the precise thing the person is doing (omit the field otherwise).
 - metaphor: ONLY for "concept" — one single REAL object that can be photographed and genuinely stands for the idea (an hourglass, a closed door, a shut notebook, a key). Be strict: if nothing stands for the idea without explanation, return null. Never a chevron, a line, an arrow, a swoosh or an abstract shape.
 - why_abstract: ONLY for "concept" and "institutional" — one sentence explaining why no person, object or place could carry this subject. Omit the field for the concrete registers.
@@ -393,6 +399,34 @@ Chapters: ${input.chapterTitles.slice(0, 12).join(" | ") || "(none yet)"}`,
   return brief;
 }
 
+/** What the routes fall back to when the brief call itself fails. */
+export function fallbackCoverBrief(input: { idea: string; subtitle: string | null }): CoverBrief {
+  return {
+    register: "concept",
+    subject: input.idea,
+    metaphor: null,
+    motifs: [input.idea],
+    paletteCore: "the colours the subject is recognised by",
+    palettes: [
+      "the subject's colours, saturated",
+      "the subject's colours, dark and deep",
+      "the subject's colours, light",
+    ],
+    mood: "specific, considered",
+    coverSubtitle: sixWords(input.subtitle),
+  };
+}
+
+/**
+ * The one direction drawn automatically while the book is being written:
+ * the register's primary photographic direction. A concept with nothing to
+ * photograph goes straight to its type-only direction.
+ */
+export function welcomeDirectionIndex(brief: CoverBrief): 0 | 1 | 2 {
+  if (brief.register === "concept" && !brief.metaphor) return 1;
+  return 0;
+}
+
 /** The three directions of the brief's register. */
 export function coverDirections(brief: CoverBrief): [Direction, Direction, Direction] {
   return REGISTER_RULES[brief.register].directions;
@@ -430,6 +464,7 @@ function exact(text: string) {
  */
 export function coverPrompt(input: {
   title: string;
+  /** Empty when nobody has given a name yet: the cover then carries none. */
   author: string;
   idea: string;
   format: EbookFormat;
@@ -451,7 +486,9 @@ export function coverPrompt(input: {
     input.brief.coverSubtitle
       ? `The subtitle, smaller, directly under the title, spelled exactly: ${exact(input.brief.coverSubtitle)}.`
       : "",
-    `The author's name, small, near the bottom, spelled exactly: ${exact(input.author)}.`,
+    input.author.trim()
+      ? `The author's name, small, near the bottom, spelled exactly: ${exact(input.author.trim())}.`
+      : "No author name on this cover: title and subtitle only.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -475,6 +512,7 @@ export function coverPrompt(input: {
 
   return [
     LEGIBILITY_FIRST,
+    COHERENCE,
     `Front cover artwork for a ${input.format.name.toLowerCase()}. Book idea: ${input.idea}.`,
     FLAT_ARTWORK,
     registerBlock,

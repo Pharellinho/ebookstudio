@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Loader2, Sparkles } from "lucide-react";
-import { COVER_AUTHOR_MAX, COVER_RUN_CAP, COVERS_PER_RUN } from "@/lib/cover-rules";
+import { Check, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import { COVER_AUTHOR_MAX, COVER_RUN_CAP, COVERS_PER_RUN, coverTitleStale } from "@/lib/cover-rules";
 import { cn } from "@/lib/cn";
 
 export type CoverCandidateView = {
@@ -10,6 +10,10 @@ export type CoverCandidateView = {
   url: string | null;
   variant: string;
   createdAt: string;
+  /** The title drawn into the picture, when the cover was made after this was recorded. */
+  title?: string;
+  /** The free cover drawn while the book was being written. */
+  welcome?: boolean;
 };
 
 export type CoverState = {
@@ -38,7 +42,8 @@ const VARIANT_LABEL: Record<string, string> = {
 };
 
 /** "action/moment" → "Moment"; older ids fall back to the table above. */
-function variantLabel(variant: string): string {
+function variantLabel(variant: string, welcome = false): string {
+  if (welcome) return "Welcome cover";
   if (VARIANT_LABEL[variant]) return VARIANT_LABEL[variant];
   const tail = variant.split("/").pop() ?? variant;
   return tail.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase());
@@ -51,9 +56,12 @@ function variantLabel(variant: string): string {
  */
 export function CoverStudio({
   bookId,
+  title,
   initial,
 }: {
   bookId: string;
+  /** The book's current title, to spot covers drawn under an older one. */
+  title: string;
   initial: CoverState;
 }) {
   const [state, setState] = useState<CoverState>(initial);
@@ -63,8 +71,14 @@ export function CoverStudio({
 
   const remaining = Math.max(0, COVER_RUN_CAP - state.runs);
   const chosen = state.candidates.find((c) => c.path === state.chosen) ?? null;
-  const latest = state.candidates.slice(-COVERS_PER_RUN);
-  const earlier = state.candidates.slice(0, -COVERS_PER_RUN);
+  /* Runs come in threes; the welcome cover stands apart and never counts as one. */
+  const fromRuns = state.candidates.filter((c) => !c.welcome);
+  const welcome = state.candidates.find((c) => c.welcome) ?? null;
+  const latest = fromRuns.slice(-COVERS_PER_RUN);
+  const others = [...(welcome ? [welcome] : []), ...fromRuns.slice(0, -COVERS_PER_RUN)];
+  /* The model draws the title into the picture, so a renamed book makes
+     the chosen cover say something else. */
+  const stale = chosen ? coverTitleStale(chosen, title) : false;
 
   async function generate() {
     if (generating || remaining === 0) return;
@@ -139,8 +153,31 @@ export function CoverStudio({
               className="w-full rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.06),0_24px_48px_-20px_rgba(0,0,0,0.35)]"
             />
             <figcaption className="mt-2 text-center text-xs text-muted-foreground">
-              Your cover · {variantLabel(chosen.variant)}
+              Your cover · {variantLabel(chosen.variant, chosen.welcome)}
             </figcaption>
+            {stale ? (
+              <div
+                role="alert"
+                className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary-soft px-4 py-3 text-sm"
+              >
+                <span className="inline-flex items-start gap-2">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-primary-strong" aria-hidden="true" />
+                  <span>
+                    <span className="font-semibold">The title has changed.</span>{" "}
+                    This cover shows the old one: “{chosen.title}”.
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void generate()}
+                  disabled={generating || remaining === 0}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-extrabold text-on-primary hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Sparkles className="size-3.5" aria-hidden="true" />
+                  Regenerate
+                </button>
+              </div>
+            ) : null}
           </figure>
         ) : (
           <div className="mx-auto flex aspect-[2/3] max-w-[24rem] flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface p-6 text-center">
@@ -171,10 +208,10 @@ export function CoverStudio({
             onChoose={choose}
           />
         ) : null}
-        {!generating && earlier.length > 0 ? (
+        {!generating && others.length > 0 ? (
           <CandidateGrid
-            title="Earlier runs"
-            items={earlier}
+            title="Other covers"
+            items={others}
             chosen={state.chosen}
             choosing={choosing}
             onChoose={choose}
@@ -216,6 +253,9 @@ export function CoverStudio({
           </span>
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
+          {welcome
+            ? "Your first cover was drawn for free while Scribe wrote the book. "
+            : ""}
           Each run draws {COVERS_PER_RUN} complete covers in three directions suited to
           your subject, with the title, subtitle and author name in the picture. Check the
           spelling before you choose: what you see is the final file.
@@ -266,13 +306,13 @@ function CandidateGrid({
             >
               {item.url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.url} alt={`Cover option, ${variantLabel(item.variant)}`} className="aspect-[2/3] w-full object-cover" />
+                <img src={item.url} alt={`Cover option, ${variantLabel(item.variant, item.welcome)}`} className="aspect-[2/3] w-full object-cover" />
               ) : (
                 <div className="aspect-[2/3] w-full" />
               )}
               {!compact ? (
                 <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-background/90 px-2 py-1.5 text-[11px] font-semibold">
-                  {variantLabel(item.variant)}
+                  {variantLabel(item.variant, item.welcome)}
                   {choosing === item.path ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
                   ) : active ? (
