@@ -21,17 +21,18 @@ async function ensureBucket() {
   if (error && !/already exists/i.test(error.message)) throw new Error(error.message);
 }
 
-/** Stores one generated illustration and returns its path inside the bucket. */
+/** Stores one generated cover and returns its path inside the bucket. */
 export async function uploadCoverArt(
   userId: string,
   bookId: string,
-  png: Buffer,
+  bytes: Buffer,
+  contentType: "image/jpeg" | "image/png" = "image/jpeg",
 ): Promise<string> {
   await ensureBucket();
-  const path = `${userId}/${bookId}/${randomUUID()}.png`;
+  const path = `${userId}/${bookId}/${randomUUID()}.${contentType === "image/png" ? "png" : "jpg"}`;
   const { error } = await admin()
     .storage.from(COVER_BUCKET)
-    .upload(path, png, { contentType: "image/png", upsert: false });
+    .upload(path, bytes, { contentType, upsert: false });
   if (error) throw new Error(error.message);
   return path;
 }

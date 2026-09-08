@@ -5,15 +5,10 @@ import type { ReactNode, RefObject } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import type { BookDesign, BookTheme } from "@/lib/book-design";
 import { cn } from "@/lib/cn";
-import type { Block } from "@/lib/paginate";
 import { FlipDeck, type DeckControls, type DeckOrientation } from "@/components/book/flip-deck";
 import {
-  LayoutMeasurer,
-  buildLayout,
-  chapterBlocks,
-  splitOversizeBlocks,
+  useBookLayout,
   type BookLayout,
-  type ChapterMeasure,
   type ChapterSource,
   type SheetSpec,
 } from "@/components/book/book-layout";
@@ -61,6 +56,7 @@ export function BookReader({
   theme,
   controlsRef,
   onChapterChange,
+  onPages,
 }: {
   bookTitle: string;
   subtitle: string | null;
@@ -72,54 +68,25 @@ export function BookReader({
   controlsRef?: RefObject<ReaderControls | null>;
   /** The chapter the reader is looking at, whenever it changes. */
   onChapterChange?: (index: number) => void;
+  /** How many sheets the book laid out to, cover and front matter included. */
+  onPages?: (count: number) => void;
 }) {
-  /* Pass 1 measures the blocks as split; while some block cannot fit any
-     page and can be broken up (a long table), another pass measures the
-     smaller pieces. */
-  const [blocksByChapter, setBlocksByChapter] = useState<Block[][]>(() => chapterBlocks(chapters));
-  const [pass, setPass] = useState(1);
-  const [layout, setLayout] = useState<BookLayout | null>(null);
-  /* The chapters the current layout was built from. The parent may hand a
-     new array on every render; only a change in content starts over. */
-  const [source, setSource] = useState(chapters);
-  const [version, setVersion] = useState(0);
-
-  /* Any change to the text or the look starts over. */
-  const inputsKey = useMemo(
-    () => JSON.stringify([chapters.map((c) => [c.id, c.title, c.markdown]), design, theme.id, bookTitle]),
-    [chapters, design, theme.id, bookTitle],
-  );
-  const lastInputs = useRef(inputsKey);
-  useEffect(() => {
-    if (lastInputs.current === inputsKey) return;
-    lastInputs.current = inputsKey;
-    setSource(chapters);
-    setBlocksByChapter(chapterBlocks(chapters));
-    setPass(1);
-    setLayout(null);
-  }, [inputsKey, chapters]);
-
-  /* Each pass cuts the tables that still do not fit into smaller pieces:
-     eight rows, then four, two, one. Four passes at most. */
-  function handleMeasured(measures: ChapterMeasure[]) {
-    if (pass < 4) {
-      const split = splitOversizeBlocks(blocksByChapter, measures, Math.max(1, 8 >> (pass - 1)));
-      if (split) {
-        setBlocksByChapter(split);
-        setPass(pass + 1);
-        return;
-      }
-    }
-    setLayout(buildLayout(blocksByChapter, measures));
-    setVersion((v) => v + 1);
-    setIndex(0);
-  }
+  const { layout, source, measurer, version } = useBookLayout(chapters, design, theme, bookTitle);
 
   const deck = useRef<DeckControls | null>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [orientation, setOrientation] = useState<DeckOrientation>("landscape");
   const total = layout?.sheets.length ?? 0;
+
+  /* A fresh layout is a fresh deck, opened at its cover. */
+  useEffect(() => {
+    setIndex(0);
+  }, [version]);
+
+  useEffect(() => {
+    if (layout && onPages) onPages(layout.sheets.length);
+  }, [layout, onPages]);
 
   useEffect(() => {
     if (!controlsRef) return;
@@ -180,15 +147,7 @@ export function BookReader({
     <div className="flex flex-col items-center">
       {layout == null ? (
         <>
-          <LayoutMeasurer
-            key={pass}
-            chapters={source}
-            blocksByChapter={blocksByChapter}
-            design={design}
-            theme={theme}
-            bookTitle={bookTitle}
-            onMeasured={handleMeasured}
-          />
+          {measurer}
           <div
             role="status"
             className="flex aspect-[3/2] w-full max-w-[52rem] flex-col items-center justify-center rounded-lg bg-surface text-sm text-muted-foreground"
@@ -274,7 +233,7 @@ function ScaledSheet({ children }: { children: ReactNode }) {
   );
 }
 
-function Sheet({
+export function Sheet({
   sheet,
   chapters,
   layout,

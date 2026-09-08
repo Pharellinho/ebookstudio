@@ -117,9 +117,9 @@ export async function GET(request: Request) {
       const results = await Promise.allSettled(
         prompts.map(async (prompt, index) => {
           const dir = directions[indexes[index]];
-          const png = await generateCover(prompt, `${brief.register}/${dir.id}`, quality);
-          const file = `${outDir}/${subject.key}-${indexes[index] + 1}-${dir.id}.png`;
-          await writeFile(file, png);
+          const picture = await generateCover(prompt, `${brief.register}/${dir.id}`, quality);
+          const file = `${outDir}/${subject.key}-${indexes[index] + 1}-${dir.id}.jpg`;
+          await writeFile(file, picture);
           return file;
         }),
       );

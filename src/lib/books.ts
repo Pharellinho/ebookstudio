@@ -57,6 +57,8 @@ export async function createBook(input: {
   title?: string | null;
   subtitle?: string | null;
   outline?: BookOutline | null;
+  /** The name drawn on the cover; null when the author has not said. */
+  coverAuthor?: string | null;
   status?: BookRow["status"];
 }): Promise<BookRow> {
   /* The id is minted here rather than by the database so the interior theme
@@ -78,6 +80,7 @@ export async function createBook(input: {
     status: BookRow["status"];
     accent?: string;
     theme?: string;
+    cover_author?: string | null;
   };
   const base: BookInsert = {
     id,
@@ -96,7 +99,12 @@ export async function createBook(input: {
   /* Until migrations 0008/0009 have been applied the columns do not exist.
      Creating a book must keep working meanwhile: drop the missing column and
      try again; the values are then derived at read time. */
-  let { data, error } = await insert({ ...base, accent, theme: themeId });
+  const withAuthor = input.coverAuthor ? { cover_author: input.coverAuthor } : {};
+  let { data, error } = await insert({ ...base, ...withAuthor, accent, theme: themeId });
+  if (error && /cover_author/i.test(error.message)) {
+    console.warn("books.cover_author column missing — run supabase/migrations/0010_book_covers.sql");
+    ({ data, error } = await insert({ ...base, accent, theme: themeId }));
+  }
   if (error && /theme/i.test(error.message)) {
     console.warn("books.theme column missing — run supabase/migrations/0009_books_theme.sql");
     ({ data, error } = await insert({ ...base, accent }));

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BookText, Check, FileText, Palette } from "lucide-react";
+import { ArrowLeft, Download, Folder as FolderIcon, Loader2, Palette } from "lucide-react";
 import { BookReader, type ReaderControls } from "@/components/book/book-reader";
 import { ThemePicker } from "@/components/app/theme-picker";
 import type { BookDesign, BookTheme } from "@/lib/book-design";
@@ -15,30 +15,25 @@ type Chapter = {
   body: string;
 };
 
-/* The formats a finished book can leave in. Export itself is the next
-   step of the product; here the reader only picks. */
-const EXPORT_FORMATS = [
-  {
-    id: "pdf",
-    name: "PDF",
-    blurb: "Exactly the pages you see here. The safest file to sell and to print.",
-    recommended: true,
-  },
-  {
-    id: "epub",
-    name: "EPUB",
-    blurb: "Reflowable text for Kindle, Apple Books and every e-reader.",
-    recommended: false,
-  },
-  {
-    id: "docx",
-    name: "DOCX",
-    blurb: "A Word document, to keep editing or hand to a designer.",
-    recommended: false,
-  },
+/* What the pack holds, folder by folder — the same list the server builds. */
+const PACK_FOLDERS = [
+  { name: "Amazon KDP", files: "eBook EPUB, paperback interior PDF, cover" },
+  { name: "Apple Books", files: "EPUB, cover" },
+  { name: "Kobo", files: "EPUB, cover" },
+  { name: "Etsy", files: "Digital PDF, cover" },
+  { name: "Gumroad", files: "Digital PDF, EPUB, cover" },
+  { name: "Your own site", files: "Digital PDF, EPUB, cover" },
+  { name: "Editable", files: "Word document (DOCX)" },
 ] as const;
 
-type ExportFormat = (typeof EXPORT_FORMATS)[number]["id"];
+const EXPORT_ERROR: Record<string, string> = {
+  nothing_to_export: "This book has no finished chapter to export yet.",
+  format_not_available: "That format is not available yet.",
+  pdf_failed: "The PDF could not be produced. Try again in a moment.",
+  pack_failed: "The pack could not be produced. Try again in a moment.",
+  rate_limited: "Too many exports in a row. Give it a minute.",
+  unauthorized: "Your session has expired. Sign in again to continue.",
+};
 
 /**
  * The preview page: the whole book, turned page by page, the theme beside
@@ -68,9 +63,51 @@ export function BookPreview({
   const [themeId, setThemeId] = useState(initialThemeId);
   const theme = themes.find((item) => item.id === themeId) ?? themes[0];
   const [pickingTheme, setPickingTheme] = useState(false);
-  const [format, setFormat] = useState<ExportFormat>("pdf");
+  const [pages, setPages] = useState<number | null>(null);
+  /* KDP prints nothing under 24 interior pages; the interior is the book
+     minus its cover and the blank page behind it. */
+  const interiorPages = pages != null ? Math.max(0, pages - 2) : null;
+  const KDP_MIN_PAGES = 24;
+  const printTooShort = interiorPages != null && interiorPages < KDP_MIN_PAGES;
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const reader = useRef<ReaderControls | null>(null);
+
+  /* The zip comes back as bytes and is handed to the browser as a
+     download, named by the server after the book's title. */
+  async function exportBook() {
+    if (exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const res = await fetch(`/api/books/${bookId}/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "pack" }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(json?.error ?? "export_failed");
+      }
+      const blob = await res.blob();
+      const name =
+        res.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "book-pack.zip";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      setExportError(EXPORT_ERROR[code] ?? "The export did not go through. Try again in a moment.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const sources = useMemo(
     () => chapters.map((chapter) => ({ id: chapter.id, title: chapter.title, markdown: chapter.body })),
@@ -163,63 +200,58 @@ export function BookPreview({
               theme={theme}
               controlsRef={reader}
               onChapterChange={setActive}
+              onPages={setPages}
             />
           </section>
 
           <section className="rounded-2xl border-2 border-dashed border-primary/50 bg-primary-soft/50 p-6">
             <p className="text-[10px] font-bold uppercase tracking-wide text-primary-strong">Next step</p>
-            <p className="mt-1 font-display text-lg font-semibold">Choose your format</p>
-            <div role="radiogroup" aria-label="Export format" className="mt-4 grid gap-3 sm:grid-cols-3">
-              {EXPORT_FORMATS.map((item) => {
-                const selected = item.id === format;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setFormat(item.id)}
-                    className={cn(
-                      "cursor-pointer rounded-xl border-2 bg-background p-4 text-left transition-colors",
-                      selected ? "border-foreground" : "border-border hover:border-primary/50",
-                    )}
-                  >
-                    <span className="flex items-center justify-between">
-                      <span className="inline-flex items-center gap-2 font-display text-base font-bold">
-                        {item.id === "pdf" ? (
-                          <FileText className="size-4" aria-hidden="true" />
-                        ) : (
-                          <BookText className="size-4" aria-hidden="true" />
-                        )}
-                        {item.name}
-                      </span>
-                      {selected ? (
-                        <Check className="size-4 text-primary-strong" aria-hidden="true" />
-                      ) : item.recommended ? (
-                        <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary-strong">
-                          Recommended
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="mt-2 block text-xs leading-relaxed text-muted-foreground">{item.blurb}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <p className="mt-1 font-display text-lg font-semibold">Download your book pack</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              One download, one folder per store, and in each folder exactly the files that store takes.
+              A READ-ME inside says what to upload where.
+            </p>
+            <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+              {PACK_FOLDERS.map((folder) => (
+                <li key={folder.name} className="flex items-start gap-2.5 rounded-xl border border-border bg-background px-3.5 py-2.5">
+                  <FolderIcon className="mt-0.5 size-4 shrink-0 text-primary-strong" aria-hidden="true" />
+                  <span>
+                    <span className="font-semibold">{folder.name}</span>
+                    <span className="block text-xs text-muted-foreground">{folder.files}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {interiorPages != null ? (
+              <p className={cn("mt-3 text-xs", printTooShort ? "text-destructive" : "text-muted-foreground")}>
+                {printTooShort
+                  ? `KDP prints books of ${KDP_MIN_PAGES} pages or more; this one has ${interiorPages} interior pages, so the pack has no paperback interior yet. The eBook files are all there.`
+                  : `${interiorPages} interior pages: the paperback interior for KDP is included.`}
+              </p>
+            ) : null}
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-muted-foreground">
-                Export comes with Pro. It is the next thing we are building; your choice is remembered here.
+                The PDFs are printed from these very pages; a long book takes up to a minute.
               </p>
               <button
                 type="button"
-                disabled
-                title="Export is coming next"
-                className="inline-flex cursor-not-allowed items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-extrabold text-on-primary opacity-60"
+                onClick={() => void exportBook()}
+                disabled={exporting}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-extrabold text-on-primary hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Continue to export
-                <ArrowRight className="size-4" aria-hidden="true" />
+                {exporting ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download className="size-4" aria-hidden="true" />
+                )}
+                {exporting ? "Preparing your pack…" : "Download the book pack"}
               </button>
             </div>
+            {exportError ? (
+              <p role="alert" className="mt-3 text-xs text-destructive">
+                {exportError}
+              </p>
+            ) : null}
           </section>
         </div>
       </div>

@@ -41,6 +41,9 @@ const answer = 42;
 
 Last paragraph after a rule.`;
 import { docxFileName, renderDocx } from "@/lib/export/docx";
+import { pdfFileName, renderPdf } from "@/lib/export/pdf";
+import { epubFileName, renderEpub } from "@/lib/export/epub";
+import { packFileName, renderPack } from "@/lib/export/pack";
 
 export const maxDuration = 60;
 
@@ -74,6 +77,17 @@ export async function GET(request: Request) {
 
   const book = await getBookForUser(id, userId);
   if (!book) return NextResponse.json({ error: "not_found" }, { status: 404 });
+
+  // ?pdf=1 — the PDF through the same headless browser as the real route.
+  if (url.searchParams.get("pdf") === "1") {
+    const started = Date.now();
+    const variant = url.searchParams.get("variant") === "print" ? "print" : "digital";
+    const pdf = await renderPdf({ origin: url.origin, bookId: book.id, userId, variant });
+    const path = `${out}/${pdfFileName(book.title ?? "book", variant === "print" ? "kdp-interior" : undefined)}`;
+    await writeFile(path, pdf.file);
+    return NextResponse.json({ path, bytes: pdf.file.byteLength, pages: pdf.pages, ms: Date.now() - started });
+  }
+
   const [chapters, cover] = await Promise.all([listChapters(book.id), loadCover(book)]);
   const document = bookDocumentFrom(book, chapters, cover);
   // ?only=6 keeps one chapter and drops the front matter, so a Quick Look
@@ -101,6 +115,23 @@ export async function GET(request: Request) {
   const theme =
     (themeId ? themes.find((item) => item.id === themeId) : undefined) ??
     resolveTheme(book.format_slug, book.theme, book.id).theme;
+
+  // ?pack=1 — the whole book pack, one folder per platform.
+  if (url.searchParams.get("pack") === "1") {
+    const started = Date.now();
+    const pack = await renderPack({ origin: url.origin, document, book, userId });
+    const path = `${out}/${packFileName(document.meta.title)}`;
+    await writeFile(path, pack.file);
+    return NextResponse.json({ path, bytes: pack.file.byteLength, pages: pack.pages, files: pack.files, ms: Date.now() - started });
+  }
+
+  // ?epub=1 — the EPUB instead of the DOCX.
+  if (url.searchParams.get("epub") === "1") {
+    const epub = await renderEpub(document, design, theme);
+    const path = `${out}/${formatSlug ?? book.format_slug}-${theme.id}-${epubFileName(document.meta.title)}`;
+    await writeFile(path, epub);
+    return NextResponse.json({ path, bytes: epub.byteLength, chapters: document.chapters.length, cover: Boolean(document.cover) });
+  }
 
   const file = await renderDocx(document, design, theme, { frontMatter: url.searchParams.get("front") !== "0" });
   const name = `${formatSlug ?? book.format_slug}-${theme.id}${only > 0 ? `-ch${only}` : ""}-${docxFileName(document.meta.title)}`;

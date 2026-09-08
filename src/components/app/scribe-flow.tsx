@@ -12,6 +12,7 @@ import {
   Square,
 } from "lucide-react";
 import { formats } from "@/lib/content";
+import { COVER_AUTHOR_MAX } from "@/lib/cover-rules";
 import { takeHandoffIdea } from "@/lib/idea-handoff";
 import { FormatCard } from "@/components/app/format-card";
 import { MarkdownBody } from "@/components/app/markdown-body";
@@ -66,7 +67,7 @@ function friendlyError(raw: unknown): string {
   return code || "Something went wrong. Try again in a moment.";
 }
 
-export function ScribeFlow() {
+export function ScribeFlow({ defaultAuthor = "" }: { defaultAuthor?: string }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("idea");
   const [idea, setIdea] = useState("");
@@ -90,6 +91,9 @@ export function ScribeFlow() {
 
   const [outlineChapters, setOutlineChapters] = useState<OutlineChapter[]>([]);
   const [subtitle, setSubtitle] = useState("");
+  /* Drawn on the cover and printed on the title page. Starts as the account
+     name; a pen name goes here, before anything is drawn. */
+  const [author, setAuthor] = useState(defaultAuthor.slice(0, COVER_AUTHOR_MAX));
 
   const [bookId, setBookId] = useState<string | null>(null);
   const generation = useRef<AbortController | null>(null);
@@ -505,6 +509,7 @@ export function ScribeFlow() {
           formatSlug,
           title: finalTitle,
           subtitle,
+          author: author.trim().slice(0, COVER_AUTHOR_MAX),
           outline: {
             title: finalTitle,
             subtitle,
@@ -847,6 +852,23 @@ export function ScribeFlow() {
                     ))}
                   </ol>
                 </ChecklistRow>
+              </div>
+
+              <div className="rounded-2xl border border-border/80 p-4">
+                <label htmlFor="scribe-author" className="text-xs font-bold uppercase tracking-wide">
+                  Author name on the cover
+                </label>
+                <input
+                  id="scribe-author"
+                  value={author}
+                  maxLength={COVER_AUTHOR_MAX}
+                  onChange={(event) => setAuthor(event.target.value)}
+                  placeholder="Your name or pen name, exactly as it should appear"
+                  className="mt-2 w-full rounded-xl border border-border px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Drawn on the cover and printed on the title page. You can change it later in the studio.
+                </p>
               </div>
 
               <p className="text-xs text-muted-foreground">

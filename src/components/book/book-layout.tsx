@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { BookDesign, BookTheme } from "@/lib/book-design";
 import { cn } from "@/lib/cn";
 import {
@@ -224,4 +225,71 @@ export function LayoutMeasurer({
       ))}
     </div>
   );
+}
+
+/**
+ * Chapters in, sheets out — the whole measuring dance, for whoever renders
+ * the sheets: the studio's reader and the print page behind the PDF.
+ *
+ * Pass 1 measures the blocks as split; while some block cannot fit any page
+ * and can be broken up (a long table), another pass measures smaller
+ * pieces: eight rows, then four, two, one. `measurer` must be rendered by
+ * the caller while `layout` is null. `version` counts finished layouts;
+ * `source` is the chapters the current layout was built from.
+ */
+export function useBookLayout(
+  chapters: ChapterSource[],
+  design: BookDesign,
+  theme: BookTheme,
+  bookTitle: string,
+): { layout: BookLayout | null; source: ChapterSource[]; measurer: ReactNode; version: number } {
+  const [blocksByChapter, setBlocksByChapter] = useState<Block[][]>(() => chapterBlocks(chapters));
+  const [pass, setPass] = useState(1);
+  const [layout, setLayout] = useState<BookLayout | null>(null);
+  const [source, setSource] = useState(chapters);
+  const [version, setVersion] = useState(0);
+
+  /* Any change to the text or the look starts over. The parent may hand a
+     new array on every render; only a change in content counts. */
+  const inputsKey = useMemo(
+    () => JSON.stringify([chapters.map((c) => [c.id, c.title, c.markdown]), design, theme.id, bookTitle]),
+    [chapters, design, theme.id, bookTitle],
+  );
+  const lastInputs = useRef(inputsKey);
+  useEffect(() => {
+    if (lastInputs.current === inputsKey) return;
+    lastInputs.current = inputsKey;
+    setSource(chapters);
+    setBlocksByChapter(chapterBlocks(chapters));
+    setPass(1);
+    setLayout(null);
+  }, [inputsKey, chapters]);
+
+  function handleMeasured(measures: ChapterMeasure[]) {
+    if (pass < 4) {
+      const split = splitOversizeBlocks(blocksByChapter, measures, Math.max(1, 8 >> (pass - 1)));
+      if (split) {
+        setBlocksByChapter(split);
+        setPass(pass + 1);
+        return;
+      }
+    }
+    setLayout(buildLayout(blocksByChapter, measures));
+    setVersion((v) => v + 1);
+  }
+
+  const measurer =
+    layout == null ? (
+      <LayoutMeasurer
+        key={pass}
+        chapters={source}
+        blocksByChapter={blocksByChapter}
+        design={design}
+        theme={theme}
+        bookTitle={bookTitle}
+        onMeasured={handleMeasured}
+      />
+    ) : null;
+
+  return { layout, source, measurer, version };
 }

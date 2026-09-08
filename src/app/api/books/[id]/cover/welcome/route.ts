@@ -10,6 +10,7 @@ import {
   fallbackCoverBrief,
   generateCover,
   welcomeDirectionIndex,
+  COVER_MIME,
 } from "@/lib/generation/cover-art";
 import { openaiConfigured } from "@/lib/generation/openai";
 import { getFormat } from "@/lib/generation/prompts";
@@ -122,8 +123,8 @@ export async function POST(request: Request, { params }: Params) {
 
   let candidate: CoverCandidate;
   try {
-    const png = await generateCover(prompt, `welcome ${brief.register}/${direction.id}`);
-    const path = await uploadCoverArt(userId, book.id, png);
+    const picture = await generateCover(prompt, `welcome ${brief.register}/${direction.id}`);
+    const path = await uploadCoverArt(userId, book.id, picture, COVER_MIME);
     candidate = {
       path,
       createdAt: new Date().toISOString(),

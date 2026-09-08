@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createBook } from "@/lib/books";
+import { COVER_AUTHOR_MAX } from "@/lib/cover-rules";
 import {
   getFormat,
   MAX_OUTLINE_CHAPTERS,
@@ -141,6 +142,13 @@ export async function POST(request: Request) {
     typeof (body as { subtitle: unknown }).subtitle === "string"
       ? (body as { subtitle: string }).subtitle.trim()
       : null;
+  const authorRaw =
+    typeof body === "object" && body && "author" in body && typeof (body as { author: unknown }).author === "string"
+      ? (body as { author: string }).author.trim()
+      : "";
+  if (authorRaw.length > COVER_AUTHOR_MAX) {
+    return NextResponse.json({ error: "invalid_author" }, { status: 400 });
+  }
   const outline = parseOutline(
     typeof body === "object" && body && "outline" in body
       ? (body as { outline: unknown }).outline
@@ -158,6 +166,7 @@ export async function POST(request: Request) {
       title,
       subtitle,
       outline,
+      coverAuthor: authorRaw || null,
       status: "draft",
     });
     return NextResponse.json({

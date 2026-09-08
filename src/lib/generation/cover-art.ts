@@ -534,7 +534,11 @@ function imageQuality(override?: string): "low" | "medium" | "high" {
   return wanted === "low" || wanted === "medium" ? wanted : "high";
 }
 
-/** One complete cover as PNG bytes. */
+/** Long side 2592: the KDP recommendation is 2560, and the 2:3 ratio of the whole product. */
+export const COVER_SIZE = "1728x2592";
+export const COVER_MIME = "image/jpeg";
+
+/** One complete cover as JPEG bytes. */
 export async function generateCover(
   prompt: string,
   variantId = "?",
@@ -548,9 +552,13 @@ export async function generateCover(
     model: IMAGE_MODEL,
     prompt,
     n: 1,
-    size: "1024x1536",
+    /* 2:3, 2592 px on the long side: KDP's "ideal" cover resolution is
+       1600 × 2560, and JPEG is the format it takes. Multiples of 16, as the
+       model requires. */
+    size: COVER_SIZE,
     quality: imageQuality(qualityOverride),
-    output_format: "png",
+    output_format: "jpeg",
+    output_compression: 90,
   });
   const b64 = result.data?.[0]?.b64_json;
   if (!b64) throw new Error("The image model returned no picture");
