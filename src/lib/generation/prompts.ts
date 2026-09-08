@@ -65,7 +65,8 @@ Rules:
 - Return ONLY valid JSON matching this shape:
   {"title":"...","subtitle":"...","chapters":[{"title":"...","summary":"..."}]}
 - Exactly ${count} chapters
-- Titles are concrete and benefit-led, not vague. No title may start with "Understanding", "Introduction to", "The Importance of" or "Exploring"
+- The BOOK TITLE is 2 to 4 words: punchy, memorable, the kind of thing a reader repeats. Everything else — the who, the where, the promise — goes in the subtitle, which is 6 words at most. A title longer than 5 words is a failure: shorten it and move the rest to the subtitle.
+- Chapter titles are concrete and benefit-led, not vague. No title may start with "Understanding", "Introduction to", "The Importance of" or "Exploring"
 - Each chapter summary is 1–2 sentences and names what the chapter will actually claim or teach — not the area it covers
 - Chapters must not overlap: if two summaries could be swapped, rewrite them
 - No markdown fences, no commentary`;
@@ -115,6 +116,10 @@ Form:
 - Include exactly ONE ">" blockquote: a single sentence worth remembering, in your own words, not a quote from anyone. Place it where it lands, not at the end.
 - Include a Markdown table ONLY when you are comparing things along the same axes. Never use one as a list.
 - Vary sentence length. Some sentences should be short.
+- NEVER use an em dash (—) or an en dash (–) in running text. For an aside, use commas or parentheses. For a break, a colon or a full stop.
+- Avoid semicolons, except inside a list that genuinely needs them.
+- Never write "it's not just X, it's Y" or any variant ("isn't just... it's...", "not merely... but...", "not only... but also...", "more than just..."). That construction is the clearest tell of machine writing. Say the one thing you mean.
+- Never start a sentence with Moreover, Furthermore, Additionally or In conclusion.
 
 Banned words and phrases: leverage, delve, robust, seamless, elevate, unlock, "in today's world", "it's important to", "plays a crucial role", "the key is", "when it comes to".
 
@@ -200,7 +205,8 @@ Rules:
 - Keep the same language and the same register as the surrounding paragraphs.
 - Keep a comparable length unless the request is to shorten or expand.
 - Keep the Markdown style of the original (plain paragraph, list, or heading).
-- Never change facts, names or numbers unless the request asks for it.`;
+- Never change facts, names or numbers unless the request asks for it.
+- NEVER use an em dash (—) or an en dash (–) in running text: commas or parentheses for an aside, a colon or a full stop for a break. Avoid semicolons. Never write "it's not just X, it's Y" or any variant ("not only... but also...", "more than just..."). Never start a sentence with Moreover, Furthermore, Additionally or In conclusion.`;
 }
 
 export function rewriteUserPrompt(input: {

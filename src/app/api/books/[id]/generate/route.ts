@@ -6,6 +6,7 @@ import {
   updateBook,
   updateChapter,
 } from "@/lib/books";
+import { cleanModelText } from "@/lib/generation/clean";
 import { openaiConfigured } from "@/lib/generation/openai";
 import { generateOutline, streamChapter } from "@/lib/generation/run";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -235,6 +236,10 @@ export async function POST(request: Request, { params }: Params) {
             break;
           }
 
+          /* Model output only: the typographic tells of machine writing are
+             removed before the text is saved. The studio shows the cleaned
+             body through chapter_done, replacing what it streamed. */
+          body = cleanModelText(body);
           await updateChapter(chapter.id, {
             title: outlineChapter.title,
             body,

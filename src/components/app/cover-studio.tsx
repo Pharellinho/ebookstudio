@@ -37,6 +37,13 @@ const VARIANT_LABEL: Record<string, string> = {
   typographic: "Bold & minimal",
 };
 
+/** "action/moment" → "Moment"; older ids fall back to the table above. */
+function variantLabel(variant: string): string {
+  if (VARIANT_LABEL[variant]) return VARIANT_LABEL[variant];
+  const tail = variant.split("/").pop() ?? variant;
+  return tail.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
 /**
  * The Cover tab: one click draws three complete covers — title, subtitle and
  * author name included — and the author picks one. Only the run costs
@@ -132,7 +139,7 @@ export function CoverStudio({
               className="w-full rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.06),0_24px_48px_-20px_rgba(0,0,0,0.35)]"
             />
             <figcaption className="mt-2 text-center text-xs text-muted-foreground">
-              Your cover · {VARIANT_LABEL[chosen.variant] ?? chosen.variant}
+              Your cover · {variantLabel(chosen.variant)}
             </figcaption>
           </figure>
         ) : (
@@ -209,8 +216,8 @@ export function CoverStudio({
           </span>
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Each run draws {COVERS_PER_RUN} complete covers — illustrated, photographic and
-          typographic — with the title, subtitle and author name in the picture. Check the
+          Each run draws {COVERS_PER_RUN} complete covers in three directions suited to
+          your subject, with the title, subtitle and author name in the picture. Check the
           spelling before you choose: what you see is the final file.
         </p>
         {error ? (
@@ -259,13 +266,13 @@ function CandidateGrid({
             >
               {item.url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.url} alt={`Cover option, ${VARIANT_LABEL[item.variant] ?? item.variant}`} className="aspect-[2/3] w-full object-cover" />
+                <img src={item.url} alt={`Cover option, ${variantLabel(item.variant)}`} className="aspect-[2/3] w-full object-cover" />
               ) : (
                 <div className="aspect-[2/3] w-full" />
               )}
               {!compact ? (
                 <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-background/90 px-2 py-1.5 text-[11px] font-semibold">
-                  {VARIANT_LABEL[item.variant] ?? item.variant}
+                  {variantLabel(item.variant)}
                   {choosing === item.path ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
                   ) : active ? (

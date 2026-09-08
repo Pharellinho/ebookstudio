@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getBookForUser, getChapter, updateChapter } from "@/lib/books";
+import { cleanModelText } from "@/lib/generation/clean";
 import { openaiConfigured } from "@/lib/generation/openai";
 import {
   getFormat,
@@ -167,7 +168,7 @@ export async function POST(request: Request, { params }: Params) {
 
   /* "Expand" may legitimately come back as two paragraphs; keep them as
      separate blocks and remember how many took the original's place. */
-  const replacementBlocks = splitParagraphs(replacement);
+  const replacementBlocks = splitParagraphs(cleanModelText(replacement));
   if (replacementBlocks.length === 0) {
     return NextResponse.json({ error: "rewrite_failed" }, { status: 502 });
   }

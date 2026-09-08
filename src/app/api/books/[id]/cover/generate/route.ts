@@ -8,7 +8,7 @@ import {
   type CoverCandidate,
 } from "@/lib/cover-rules";
 import { signCoverArt, uploadCoverArt } from "@/lib/covers";
-import { COVER_VARIANTS, coverPrompt, generateCover } from "@/lib/generation/cover-art";
+import { DEV_SINGLE_VARIANT, coverBrief, coverDirections, coverPrompt, generateCover } from "@/lib/generation/cover-art";
 import { openaiConfigured } from "@/lib/generation/openai";
 import { getFormat } from "@/lib/generation/prompts";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -101,19 +101,45 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   const title = book.title ?? book.outline?.title ?? "Untitled";
+
+  /* One cheap text call turns the idea into a world the image model can
+     draw: motifs, palette, mood. If it fails, the covers still get made
+     from the idea alone. */
+  let brief: Awaited<ReturnType<typeof coverBrief>>;
+  try {
+    brief = await coverBrief({
+      title,
+      subtitle: book.subtitle,
+      idea: book.idea,
+      chapterTitles: (book.outline?.chapters ?? []).map((chapter) => chapter.title),
+    });
+  } catch (error) {
+    console.error("cover brief failed", error);
+    brief = {
+      register: "concept",
+      subject: book.idea,
+      motifs: [book.idea],
+      palettes: ["true to the subject", "a second palette", "a third palette"],
+      mood: "specific, considered",
+      coverSubtitle: book.subtitle ? book.subtitle.split(/\s+/).slice(0, 6).join(" ") : null,
+    };
+  }
+
+  const directions = coverDirections(brief);
   const results = await Promise.allSettled(
-    COVER_VARIANTS.slice(0, COVERS_PER_RUN).map(async (variant): Promise<CoverCandidate> => {
+    ([0, 1, 2] as const).slice(0, DEV_SINGLE_VARIANT ? 1 : COVERS_PER_RUN).map(async (index): Promise<CoverCandidate> => {
       const prompt = coverPrompt({
         title,
-        subtitle: book.subtitle,
         author: authorRaw,
         idea: book.idea,
         format,
-        variant,
+        brief,
+        directionIndex: index,
       });
-      const png = await generateCover(prompt);
+      const variant = `${brief.register}/${directions[index].id}`;
+      const png = await generateCover(prompt, variant);
       const path = await uploadCoverArt(userId, book.id, png);
-      return { path, createdAt: new Date().toISOString(), variant: variant.id };
+      return { path, createdAt: new Date().toISOString(), variant };
     }),
   );
 

@@ -179,11 +179,11 @@ export function StudioReader({
             </div>
           </div>
 
-          {mode === "cover" ? (
-            <div className="mt-6">
-              <CoverStudio bookId={bookId} initial={cover} />
-            </div>
-          ) : null}
+          {/* Kept mounted and only hidden: covers generated in this session
+              must survive a trip to Edit or Preview and back. */}
+          <div className="mt-6" hidden={mode !== "cover"}>
+            <CoverStudio bookId={bookId} initial={cover} />
+          </div>
 
           {chapter && pickingTheme && mode !== "cover" ? (
             <div className="mt-5">
