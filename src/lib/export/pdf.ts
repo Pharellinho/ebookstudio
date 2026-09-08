@@ -31,7 +31,10 @@ async function launch(): Promise<Browser> {
     return puppeteer.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
-      headless: true,
+      /* The package ships chrome-headless-shell and adds its own
+         --headless='shell' flag; asking Puppeteer for "shell" keeps the two
+         in agreement. */
+      headless: "shell",
     });
   }
   const local = process.env.CHROME_PATH?.trim() || MAC_CHROME;

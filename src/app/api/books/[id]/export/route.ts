@@ -11,7 +11,9 @@ import { originAllowed } from "@/lib/request-origin";
 
 type Params = { params: Promise<{ id: string }> };
 
-export const maxDuration = 60;
+/* A cold Chromium plus two PDFs of a long book: minutes, not seconds. Same
+   ceiling as the generate route; lower it if a deploy is refused. */
+export const maxDuration = 300;
 
 const FORMATS = ["pack", "docx", "pdf", "epub"] as const;
 type Format = (typeof FORMATS)[number];
