@@ -1,6 +1,6 @@
 import "server-only";
 import type { EbookFormat } from "@/lib/content";
-import { GENERATION_MODEL, getOpenAI } from "@/lib/generation/openai";
+import { GENERATION_MODEL, getOpenAI, sampling } from "@/lib/generation/openai";
 import {
   rewriteSystemPrompt,
   rewriteUserPrompt,
@@ -41,8 +41,8 @@ export async function rewriteParagraph(input: {
 
   const completion = await openai.chat.completions.create({
     model: GENERATION_MODEL,
-    temperature: 0.5,
-    max_tokens: MAX_OUTPUT_TOKENS,
+    ...sampling(GENERATION_MODEL, 0.5),
+    max_completion_tokens: MAX_OUTPUT_TOKENS,
     messages: [
       { role: "system", content: rewriteSystemPrompt(input.format) },
       {

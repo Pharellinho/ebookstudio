@@ -119,7 +119,8 @@ export async function POST(request: Request, { params }: Params) {
       register: "concept",
       subject: book.idea,
       motifs: [book.idea],
-      palettes: ["true to the subject", "a second palette", "a third palette"],
+      paletteCore: "the colours the subject is recognised by",
+      palettes: ["the subject's colours, saturated", "the subject's colours, dark and deep", "the subject's colours, light"],
       mood: "specific, considered",
       coverSubtitle: book.subtitle ? book.subtitle.split(/\s+/).slice(0, 6).join(" ") : null,
     };

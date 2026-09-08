@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import {
   getBookForUser,
+  listChapters,
   syncOutlineChapters,
   touchBook,
   updateBook,
@@ -8,7 +9,7 @@ import {
 } from "@/lib/books";
 import { cleanModelText } from "@/lib/generation/clean";
 import { openaiConfigured } from "@/lib/generation/openai";
-import { generateOutline, streamChapter } from "@/lib/generation/run";
+import { generateVerifiedOutline, streamChapter } from "@/lib/generation/run";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { originAllowed } from "@/lib/request-origin";
 
@@ -22,6 +23,12 @@ export const maxDuration = 300;
 
 const GENERATE_LIMIT = 6;
 const GENERATE_WINDOW_MS = 60 * 60 * 1000;
+
+/* A capable model takes close to a minute per chapter, and the platform
+   cuts a function at maxDuration. So one call writes at most this many NEW
+   chapters, then ends with a "paused" event; the client calls again at
+   once and the route resumes from the chapters already marked ready. */
+const CHAPTERS_PER_CALL = 3;
 
 /* A run that has not touched the book for this long is dead, not busy: the
    connection dropped, or the function was cut off. Without this a single dead
@@ -76,18 +83,24 @@ export async function POST(request: Request, { params }: Params) {
     });
   }
 
-  /* Counted only once the request is going to do real work. Charging the
-     limiter before the checks above let a stuck book burn the whole hourly
-     allowance on 409s. */
-  const rate = await checkRateLimit(`books:generate:${userId}`, {
-    limit: GENERATE_LIMIT,
-    windowMs: GENERATE_WINDOW_MS,
-  });
-  if (!rate.ok) {
-    return new Response(JSON.stringify({ error: "rate_limited" }), {
-      status: 429,
-      headers: { "Content-Type": "application/json" },
+  /* Counted only once the request is going to do real work, and only when
+     a book STARTS: a continuation or a resume of a book that already holds
+     finished chapters is free, otherwise a long book would exhaust the
+     hourly allowance on its own slices. */
+  const alreadyWritten = (await listChapters(book.id)).some(
+    (chapter) => chapter.status === "ready" && chapter.body.trim(),
+  );
+  if (!alreadyWritten) {
+    const rate = await checkRateLimit(`books:generate:${userId}`, {
+      limit: GENERATE_LIMIT,
+      windowMs: GENERATE_WINDOW_MS,
     });
+    if (!rate.ok) {
+      return new Response(JSON.stringify({ error: "rate_limited" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
   }
 
   const encoder = new TextEncoder();
@@ -152,10 +165,19 @@ export async function POST(request: Request, { params }: Params) {
           });
           send("status", { status: "outlining" });
 
-          outline = await generateOutline({
+          /* Audited before a single chapter is bought: elements from the
+             wrong country, region or field are sent back once. */
+          const verified = await generateVerifiedOutline({
             idea: book.idea,
             formatSlug: book.format_slug,
           });
+          outline = verified.outline;
+          if (verified.problems.length > 0) {
+            console.warn(
+              `outline audit for book ${book.id}: ${verified.problems.length} problem(s), regenerated=${verified.regenerated}`,
+              verified.problems,
+            );
+          }
 
           await updateBook(book.id, {
             title: outline.title,
@@ -176,6 +198,8 @@ export async function POST(request: Request, { params }: Params) {
         const chapters = await syncOutlineChapters(book.id, outline);
 
         const previousTitles: string[] = [];
+        let writtenThisCall = 0;
+        let paused = false;
 
         for (let index = 0; index < chapters.length; index++) {
           // Checked before every chapter so a cancel never buys one more.
@@ -198,6 +222,16 @@ export async function POST(request: Request, { params }: Params) {
               body: chapter.body,
             });
             continue;
+          }
+
+          /* This call has written its share: hand over to the next one
+             before the platform cuts us off. The book goes back to draft so
+             the follow-up call is not refused as "already generating". */
+          if (writtenThisCall >= CHAPTERS_PER_CALL) {
+            paused = true;
+            await updateBook(book.id, { status: "draft", error: null });
+            send("paused", { nextPosition: chapter.position, total: chapters.length });
+            break;
           }
 
           await updateChapter(chapter.id, { status: "writing" });
@@ -246,6 +280,7 @@ export async function POST(request: Request, { params }: Params) {
             status: "ready",
           });
           previousTitles.push(outlineChapter.title);
+          writtenThisCall += 1;
           // Keeps the staleness check above honest during a long run.
           await touchBook(book.id);
           send("chapter_done", {
@@ -260,6 +295,7 @@ export async function POST(request: Request, { params }: Params) {
           await stopEarly();
           return;
         }
+        if (paused) return;
 
         await updateBook(book.id, { status: "ready" });
         send("done", { status: "ready", bookId: book.id });

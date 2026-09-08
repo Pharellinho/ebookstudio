@@ -1,8 +1,8 @@
 import "server-only";
 import type { EbookFormat } from "@/lib/content";
-import { GENERATION_MODEL, getOpenAI } from "@/lib/generation/openai";
+import { GENERATION_MODEL, getOpenAI, sampling } from "@/lib/generation/openai";
 
-const IMAGE_MODEL = "gpt-image-1";
+const IMAGE_MODEL = "gpt-image-2";
 
 /* TEMPORARY debug trace: prints the brief and the exact prompts sent to the
    image model in the `npm run dev` terminal, so they can be read and tuned.
@@ -17,6 +17,10 @@ const DEBUG_COVER_PROMPTS = process.env.NODE_ENV !== "production";
    wants one metaphor or pure type, a report wants almost nothing but type.
    The text model classifies the SUBJECT (never the format) into one of six
    registers, and only that register's rules reach the image model.
+
+   Colour: the brief names the subject's own colour world once, then three
+   variations of it (saturated, deep, light). Three different worlds made
+   the three covers look like three different books.
 --------------------------------------------------------------------------- */
 export const COVER_REGISTERS = [
   "action",
@@ -28,7 +32,12 @@ export const COVER_REGISTERS = [
 ] as const;
 export type CoverRegister = (typeof COVER_REGISTERS)[number];
 
-type Direction = { id: string; brief: string };
+type Direction = {
+  id: string;
+  brief: string;
+  /** True for the photographic directions; the prompt then forbids any drawn treatment. */
+  photo: boolean;
+};
 
 type RegisterRules = {
   /** What the cover shows, in the art director's words. */
@@ -44,6 +53,11 @@ type RegisterRules = {
 const PERSON_RULE =
   "If a person is shown: from BEHIND, in PROFILE, CROPPED above or below the face, small and AT A DISTANCE inside the scene, or ONLY THE HANDS in close-up on what they are doing. Never a face straight on in close-up, never eye contact with the camera, never a stock-photo smile. Someone caught in their gesture, not posing.";
 
+/* Said on the two photographic directions of every concrete register, so
+   that only the third direction is ever drawn. */
+const PHOTOGRAPH_NOT_DRAWN =
+  "TREATMENT: this cover is a PHOTOGRAPH. Not an illustration, not a painting, not a drawing, not a flat vector, not a 3D render. If it does not look like a real photograph of a real place, object or person, it is wrong.";
+
 const PHOTO_RULE =
   "Photographic and realistic: real materials with their texture (wood grain, worn paper, steel, fabric, skin at a distance), natural or cinematic light, shallow depth of field, a light film grain. It should read as a photograph a good art director commissioned, not as a render.";
 
@@ -58,16 +72,19 @@ const REGISTER_RULES: Record<CoverRegister, RegisterRules> = {
     directions: [
       {
         id: "moment",
+        photo: true,
         brief:
           "Direction A — the moment, photographic: the person seen from behind or in profile, mid-gesture, in the real setting of the subject; cinematic light, shallow depth of field. Full-bleed image; the title sits in the calmest, clearly dark or clearly light third of the frame.",
       },
       {
         id: "hands",
+        photo: true,
         brief:
           "Direction B — the hands, photographic: a tight close-up on the hands and the tool or object they work with, no face in frame, hard crop, natural light. The title set large across the top or bottom band.",
       },
       {
         id: "scene",
+        photo: false,
         brief:
           "Direction C — the scene, illustrated (the one drawn direction): the same action as an editorial illustration in ink and flat colour, the figure small enough that the setting reads too, seen from behind or at a distance. Image on the lower two thirds, title on a solid colour block above.",
       },
@@ -82,16 +99,19 @@ const REGISTER_RULES: Record<CoverRegister, RegisterRules> = {
     directions: [
       {
         id: "top-down",
+        photo: true,
         brief:
           "Direction A — top-down, photographic: the object seen from directly above, flat-lay, centred on a plain real surface, soft even light. The title sits ABOVE the object in the top third, the author name at the very bottom.",
       },
       {
         id: "eye-level",
+        photo: true,
         brief:
           "Direction B — eye-level close-up, photographic: the camera at the object's own height, very close, shallow depth of field so the background dissolves; the object fills the LOWER two thirds and is cropped by the bottom edge. The title sits in the soft, out-of-focus upper third.",
       },
       {
         id: "offset",
+        photo: false,
         brief:
           "Direction C — offset, illustrated (the one drawn direction): the object as a considered illustration pushed hard into one lower corner, small, occupying a fifth of the cover at most, leaving a large plain field of colour where the title is set very large and flush to the opposite side.",
       },
@@ -107,16 +127,19 @@ const REGISTER_RULES: Record<CoverRegister, RegisterRules> = {
     directions: [
       {
         id: "vista",
+        photo: true,
         brief:
           "Direction A — vista, photographic: a wide view of the place at a specific hour (dawn, dusk, storm light), a single distant figure for scale, full-bleed, the title set in the sky or the calmest area.",
       },
       {
         id: "threshold",
+        photo: true,
         brief:
           "Direction B — threshold, photographic: at eye level, close to a doorway, a street corner or a window of the place, a person seen from behind about to step through; shallow depth of field, the title on the darkest or lightest plane.",
       },
       {
         id: "painted",
+        photo: false,
         brief:
           "Direction C — painted (the one drawn direction): the place as a flat-colour landscape illustration, layered planes, limited palette, a tiny figure from behind; a horizontal band for the title.",
       },
@@ -131,16 +154,19 @@ const REGISTER_RULES: Record<CoverRegister, RegisterRules> = {
     directions: [
       {
         id: "object-metaphor",
+        photo: true,
         brief:
           "Direction A — the object, photographic: ONLY if a metaphor object is given below, photograph that one real object alone on a plain surface, soft directional light, plenty of empty space, title above it. If no metaphor is given, this cover is purely typographic: title very large, nothing else.",
       },
       {
         id: "type-only",
+        photo: false,
         brief:
           "Direction B — type only: no image, no mark, no ornament of any kind. One perfectly flat, uniform background colour from the palette — no gradient, no fog, no glow — and the title set very large in crisp letters, flush left, with the subtitle and author aligned to the same left edge.",
       },
       {
         id: "oversized",
+        photo: false,
         brief:
           "Direction C — oversized: purely typographic. The title's first word set so large it bleeds off the edges of the cover, the rest of the title normal size beneath it, two colours only, no image, no ornament.",
       },
@@ -153,16 +179,19 @@ const REGISTER_RULES: Record<CoverRegister, RegisterRules> = {
     directions: [
       {
         id: "type-block",
+        photo: false,
         brief:
           "Direction A — type block: a perfectly flat, uniform off-white paper ground (no haze, no gradient, no texture beyond faint print grain), the title in a strong grotesque typeface set flush left, one thin rule in the accent colour, and nothing else at all.",
       },
       {
         id: "pattern",
+        photo: false,
         brief:
           "Direction B — pattern: a fine, quiet geometric pattern (thin lines, small dots or a soft grid) filling the ground, and a solid panel carrying the title. The pattern is the only element; no icons or objects anywhere.",
       },
       {
         id: "colour-field",
+        photo: false,
         brief:
           "Direction C — colour field: the whole cover is one perfectly flat, uniform deep colour from the palette — no gradient, no fog, no vignette, no glow — with the title reversed out in large crisp type and a small mark in one corner; the most restrained of the three.",
       },
@@ -175,16 +204,19 @@ const REGISTER_RULES: Record<CoverRegister, RegisterRules> = {
     directions: [
       {
         id: "outline-scene",
+        photo: false,
         brief:
           "Direction A — outline scene: a full scene from the subject as thick black line art on white, partially coloured in bright flat colours as a sample, the title in a rounded bold typeface.",
       },
       {
         id: "hero-outline",
+        photo: false,
         brief:
           "Direction B — hero outline: one big character or object from the subject as bold outline art, centred on a single bright colour ground, title above.",
       },
       {
         id: "framed",
+        photo: false,
         brief:
           "Direction C — framed: a white cover with a coloured border, a small line-art vignette in the middle, and the title large and playful. Simple, high contrast.",
       },
@@ -217,7 +249,8 @@ const UNIVERSAL =
 /**
  * The art director's brief, worked out by the text model before any picture
  * is drawn: which register the SUBJECT belongs to, what to show for it,
- * three distinct palettes, and a cover-length subtitle.
+ * the subject's colour world with three variations of it, and a cover-length
+ * subtitle.
  */
 export type CoverBrief = {
   register: CoverRegister;
@@ -231,7 +264,9 @@ export type CoverBrief = {
   whyAbstract?: string;
   /** Concrete, drawable specifics of THIS subject. */
   motifs: string[];
-  /** Three distinct palettes, one per direction. */
+  /** The subject's own colour world: the palette a reader recognises the subject by. */
+  paletteCore: string;
+  /** Three variations INSIDE that world (saturated, deep, light), one per direction. */
   palettes: [string, string, string];
   mood: string;
   /** The subtitle as it should appear on the cover: six words at most. */
@@ -261,7 +296,7 @@ export async function coverBrief(input: {
   const openai = getOpenAI();
   const completion = await openai.chat.completions.create({
     model: GENERATION_MODEL,
-    temperature: 0.4,
+    ...sampling(GENERATION_MODEL, 0.4),
     response_format: { type: "json_object" },
     messages: [
       {
@@ -285,16 +320,18 @@ Examples:
 - "Freelance rates survey 2026" → "institutional": an analysis, so typography.
 
 Return ONLY JSON:
-{"register":"...","subject":"...","activity":"...","metaphor":"...","why_abstract":"...","motifs":["...","...","...","...","..."],"palettes":["...","...","..."],"mood":"...","coverSubtitle":"..."}
+{"register":"...","subject":"...","activity":"...","metaphor":"...","why_abstract":"...","motifs":["...","...","...","...","..."],"palette_core":"...","palettes":["...","...","..."],"mood":"...","coverSubtitle":"..."}
 - subject: one sentence saying what the cover shows in this register's terms — the action for "action", the object for "object", the space for "place", the single metaphor for "concept", the typographic idea for "institutional", the line-art subject for "activity-book".
 - activity: ONLY for "action" — the precise thing the person is doing (omit the field otherwise).
 - metaphor: ONLY for "concept" — one single REAL object that can be photographed and genuinely stands for the idea (an hourglass, a closed door, a shut notebook, a key). Be strict: if nothing stands for the idea without explanation, return null. Never a chevron, a line, an arrow, a swoosh or an abstract shape.
 - why_abstract: ONLY for "concept" and "institutional" — one sentence explaining why no person, object or place could carry this subject. Omit the field for the concrete registers.
 - motifs: 5 concrete, drawable specifics of THIS subject (objects, places, clothing, tools, creatures, textures). Specific beats generic. Never money bags, coins, dollar signs, light bulbs, rockets, handshakes, trophies or arrows.
-- palettes: three clearly different palettes that belong to the subject, each as "colour, colour, colour".
+- palette_core: the ONE palette the subject lives in, as "colour, colour, colour" — the colours a reader recognises the subject by before reading a word.
+- palettes: three VARIATIONS of palette_core, in this order: [0] the saturated version, [1] the dark and deep version, [2] the light version. Each as "colour, colour, colour", each unmistakably the same world as palette_core. Never three different worlds.
 - mood: three adjectives.
 - coverSubtitle: the subtitle rewritten for a cover, six words at most, saying what the title does not (the promise, the who, the how); it must not repeat words from the title. Null if there is none.
-Do not mention brand logos or trademarked characters; describe the world in your own words.`,
+COLOUR: colour is what makes a reader recognise the subject before the picture even registers. A book about social media lives in the warm, saturated colours of screens — coral, magenta, orange. A cookbook lives in the warm tones of food. A report lives in sober tones. NEVER leave the subject's colour world to get variety: vary the intensity, the depth and the lightness INSIDE that world. A night-blue or a cream cover for a social media book looks like a different book.
+BRANDS: never borrow the logo, the name, the wordmark or the graphic identity of a brand or a platform. Take the colour register of the DOMAIN (screens, food, paper), never the brand guidelines of a company. Do not mention brand logos or trademarked characters; describe the world in your own words.`,
       },
       {
         role: "user",
@@ -321,10 +358,14 @@ Chapters: ${input.chapterTitles.slice(0, 12).join(" | ") || "(none yet)"}`,
   const palettesRaw = Array.isArray(parsed.palettes)
     ? parsed.palettes.filter((p): p is string => typeof p === "string")
     : [];
+  const paletteCore =
+    typeof parsed.palette_core === "string" && parsed.palette_core.trim()
+      ? parsed.palette_core.trim()
+      : (palettesRaw[0] ?? "the colours the subject is recognised by");
   const palettes: [string, string, string] = [
-    palettesRaw[0] ?? "restrained, true to the subject",
-    palettesRaw[1] ?? "a second palette from the subject's world",
-    palettesRaw[2] ?? "a third, contrasting palette",
+    palettesRaw[0] ?? `${paletteCore}, saturated`,
+    palettesRaw[1] ?? `${paletteCore}, dark and deep`,
+    palettesRaw[2] ?? `${paletteCore}, light`,
   ];
   const brief: CoverBrief = {
     register,
@@ -339,6 +380,7 @@ Chapters: ${input.chapterTitles.slice(0, 12).join(" | ") || "(none yet)"}`,
       ? { whyAbstract: parsed.why_abstract.trim() }
       : {}),
     motifs: motifs.length > 0 ? motifs : [input.idea],
+    paletteCore,
     palettes,
     mood: typeof parsed.mood === "string" ? parsed.mood : "confident, specific, considered",
     coverSubtitle: sixWords(
@@ -355,6 +397,26 @@ Chapters: ${input.chapterTitles.slice(0, 12).join(" | ") || "(none yet)"}`,
 export function coverDirections(brief: CoverBrief): [Direction, Direction, Direction] {
   return REGISTER_RULES[brief.register].directions;
 }
+
+/* Photograph or drawing, said bluntly. In the concrete registers two
+   directions are photographs and the third is the one drawing; a concept
+   cover without a metaphor is type alone, so neither word applies. */
+const CONCRETE: readonly CoverRegister[] = ["action", "object", "place"];
+function treatmentLine(brief: CoverBrief, direction: Direction): string {
+  const rules = REGISTER_RULES[brief.register];
+  if (!rules.photoreal) {
+    return "No photorealism for this register: flat colour, graphic or typographic treatment only.";
+  }
+  if (brief.register === "concept" && !brief.metaphor) return "";
+  if (direction.photo) return PHOTOGRAPH_NOT_DRAWN;
+  if (CONCRETE.includes(brief.register)) {
+    return "This is the ONE drawn direction of its register: an illustration, deliberately, in the same colour world as the photographs.";
+  }
+  return "";
+}
+
+/* The three palette variations, in the order the brief returns them. */
+const PALETTE_VARIATION = ["saturated", "dark and deep", "light"] as const;
 
 /** Quotes are what the model must copy letter for letter. */
 function exact(text: string) {
@@ -404,10 +466,9 @@ export function coverPrompt(input: {
         : "No metaphor is given: every direction is purely typographic — no image, no mark, no ornament."
       : "",
     `Specifics of the subject to draw from: ${input.brief.motifs.join("; ")}.`,
-    `Palette for this cover: ${palette}. Mood: ${input.brief.mood}.`,
-    rules.photoreal
-      ? ""
-      : "No photorealism for this register: flat colour, graphic or typographic treatment only.",
+    `COLOUR WORLD of the subject: ${input.brief.paletteCore}. This cover uses the ${PALETTE_VARIATION[input.directionIndex]} variation of it: ${palette}. Stay inside this colour world; it is what makes the subject recognisable. Mood: ${input.brief.mood}.`,
+    "No brand logo, wordmark or platform identity anywhere: the colour register of the domain, never a company's branding.",
+    treatmentLine(input.brief, direction),
   ]
     .filter(Boolean)
     .join(" ");

@@ -1,7 +1,7 @@
 import "server-only";
 import { formats } from "@/lib/content";
 import { getFormat, type BookOutline } from "@/lib/generation/prompts";
-import { GENERATION_MODEL, getOpenAI } from "@/lib/generation/openai";
+import { GENERATION_MODEL, getOpenAI, sampling } from "@/lib/generation/openai";
 
 const EBOOK_FORMATS = formats.filter((f) => f.slug !== "coloring-book");
 
@@ -27,7 +27,7 @@ export async function suggestFormat(idea: string): Promise<{
 
   const completion = await openai.chat.completions.create({
     model: GENERATION_MODEL,
-    temperature: 0.3,
+    ...sampling(GENERATION_MODEL, 0.3),
     response_format: { type: "json_object" },
     messages: [
       {
@@ -71,7 +71,7 @@ export async function suggestTitles(input: {
   const openai = getOpenAI();
   const completion = await openai.chat.completions.create({
     model: GENERATION_MODEL,
-    temperature: 0.9,
+    ...sampling(GENERATION_MODEL, 0.9),
     response_format: { type: "json_object" },
     messages: [
       {

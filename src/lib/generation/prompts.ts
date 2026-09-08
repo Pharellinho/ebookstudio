@@ -66,10 +66,15 @@ Rules:
   {"title":"...","subtitle":"...","chapters":[{"title":"...","summary":"..."}]}
 - Exactly ${count} chapters
 - The BOOK TITLE is 2 to 4 words: punchy, memorable, the kind of thing a reader repeats. Everything else — the who, the where, the promise — goes in the subtitle, which is 6 words at most. A title longer than 5 words is a failure: shorten it and move the rest to the subtitle.
-- Chapter titles are concrete and benefit-led, not vague. No title may start with "Understanding", "Introduction to", "The Importance of" or "Exploring"
+- Chapter titles are concrete and benefit-led, not vague, and carry no numbering (the book adds "1.", "2." itself). No title may start with "Understanding", "Introduction to", "The Importance of" or "Exploring"
 - Each chapter summary is 1–2 sentences and names what the chapter will actually claim or teach — not the area it covers
 - Chapters must not overlap: if two summaries could be swapped, rewrite them
-- No markdown fences, no commentary`;
+- No markdown fences, no commentary
+
+Accuracy — no substitution:
+- When the subject is regional, local, cultural or otherwise specific, name ONLY things that genuinely belong to that exact scope: that country, that region, that cuisine, that game, that era. Never replace a specific element with a better-known neighbour (a Cameroonian cookbook does not contain Jollof rice, which is West African; a Lisbon guide does not describe Madrid).
+- An example borrowed from a nearby field is an ERROR, not an acceptable approximation.
+- If you cannot name elements that truly belong to this subject, say so explicitly rather than inventing or borrowing them.`;
 }
 
 export function outlineUserPrompt(idea: string, format: EbookFormat): string {
@@ -120,6 +125,11 @@ Form:
 - Avoid semicolons, except inside a list that genuinely needs them.
 - Never write "it's not just X, it's Y" or any variant ("isn't just... it's...", "not merely... but...", "not only... but also...", "more than just..."). That construction is the clearest tell of machine writing. Say the one thing you mean.
 - Never start a sentence with Moreover, Furthermore, Additionally or In conclusion.
+
+Accuracy — no substitution:
+- When the subject is regional, local, cultural or otherwise specific, name ONLY things that genuinely belong to that exact scope: that country, that region, that cuisine, that game, that era. Never replace a specific element with a better-known neighbour (a Cameroonian cookbook does not contain Jollof rice, which is West African; a Lisbon guide does not describe Madrid).
+- An example borrowed from a nearby field is an ERROR, not an acceptable approximation.
+- If you cannot name elements that truly belong to this subject, say so explicitly rather than inventing or borrowing them.
 
 Banned words and phrases: leverage, delve, robust, seamless, elevate, unlock, "in today's world", "it's important to", "plays a crucial role", "the key is", "when it comes to".
 

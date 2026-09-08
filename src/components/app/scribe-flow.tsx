@@ -362,6 +362,17 @@ export function ScribeFlow() {
             router.push(`/studio/${id}`);
           }
 
+          /* The server writes a few chapters per call; it asks us to call
+             again for the next slice. Same book, same controller, no pause
+             visible to the reader. */
+          if (event === "paused") {
+            setStatusLine(
+              `Scribe is writing your book… (${Number(data.nextPosition) + 1} of ${Number(data.total)})`,
+            );
+            void streamGeneration(id, controller);
+            return;
+          }
+
           if (event === "error") {
             throw new Error(String(data.message ?? "Generation failed"));
           }

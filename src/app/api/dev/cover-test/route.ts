@@ -9,6 +9,22 @@ export const maxDuration = 300;
 
 const SUBJECTS = [
   {
+    key: "instagram",
+    formatSlug: "how-to-guide",
+    title: "Grow on Instagram",
+    subtitle: "From zero to your first ten thousand followers, one post at a time",
+    idea: "How to grow an Instagram account from zero to 10,000 followers: content, hooks, reels, posting rhythm and turning followers into customers",
+    chapters: ["Choose a niche people search for", "Hooks that stop the scroll", "Reels, carousels and when to use each", "A posting rhythm you can keep", "From followers to buyers"],
+  },
+  {
+    key: "cameroon",
+    formatSlug: "how-to-guide",
+    title: "Taste Cameroon",
+    subtitle: "Cooking the classic dishes of Cameroon at home",
+    idea: "Cameroonian recipes and how to cook them at home",
+    chapters: ["Ndolé, the bitterleaf stew", "Poulet DG with fried plantains", "Eru and water fufu", "Koki, steamed black-eyed pea cake", "Grilled fish and the pepper sauces"],
+  },
+  {
     key: "german",
     formatSlug: "how-to-guide",
     title: "Conquer the German Job Market as a Foreign Student",
