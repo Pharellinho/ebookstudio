@@ -1,7 +1,7 @@
 import "server-only";
 import { formats } from "@/lib/content";
 import { getFormat, type BookOutline } from "@/lib/generation/prompts";
-import { GENERATION_MODEL, getOpenAI, sampling } from "@/lib/generation/openai";
+import { GENERATION_MODEL, getOpenAI, sampling, logUsage } from "@/lib/generation/openai";
 
 const EBOOK_FORMATS = formats.filter((f) => f.slug !== "coloring-book");
 
@@ -41,6 +41,7 @@ ${catalog}`,
     ],
   });
 
+  logUsage("format-pick", GENERATION_MODEL, completion.usage);
   const raw = completion.choices[0]?.message?.content;
   if (!raw) throw new Error("Empty format suggestion");
   const parsed = extractJsonObject(raw) as {
@@ -88,6 +89,7 @@ Exactly 3 options. Titles punchy, benefit-led, under 70 characters.`,
     ],
   });
 
+  logUsage("titles", GENERATION_MODEL, completion.usage);
   const raw = completion.choices[0]?.message?.content;
   if (!raw) throw new Error("Empty titles");
   const parsed = extractJsonObject(raw) as {

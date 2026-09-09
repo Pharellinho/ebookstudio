@@ -57,6 +57,7 @@ const ERROR_TEXT: Record<string, string> = {
   invalid_idea: "Tell Scribe a bit more — at least a sentence, and no more than 1200 characters.",
   invalid_format: "That format is not available. Pick another one.",
   invalid_outline: "The outline could not be read. Go back a step and try again.",
+  upgrade_required: "The free plan holds one book. Upgrade to write the next one.",
 };
 
 function friendlyError(raw: unknown): string {

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { Logo } from "@/components/logo";
+import { FOUNDING_PRICE, PLAN_NAMES, type PlanId } from "@/lib/billing/plans";
 
 type NavItem = {
   href: string;
@@ -26,7 +27,7 @@ type NavItem = {
 const nav: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/create", label: "Create ebook", icon: Plus },
-  { href: "/coloring", label: "Activity pack", icon: Palette, badge: "NEW" },
+  { href: "/coloring", label: "Coloring books", icon: Palette, badge: "NEW" },
   { href: "/books", label: "My eBooks", icon: BookOpen },
   {
     href: "#",
@@ -42,12 +43,15 @@ export function AppSidebar({
   displayName,
   email,
   isFounder,
+  plan,
 }: {
   displayName: string | null;
   email: string | null;
   isFounder: boolean;
+  plan: PlanId;
 }) {
   const pathname = usePathname();
+  const paid = plan !== "free";
 
   return (
     <aside className="flex w-full shrink-0 flex-col border-b border-border/80 bg-background lg:h-full lg:w-[272px] lg:border-r lg:border-b-0">
@@ -62,21 +66,31 @@ export function AppSidebar({
             aria-hidden="true"
           />
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-80">
-            Credits
+            Your plan
           </p>
           <p className="mt-1 font-display text-2xl font-extrabold tracking-tight">
-            Free preview
+            {PLAN_NAMES[plan]}
           </p>
           <div className="mt-4 flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-black/10 px-2.5 py-1 text-[10px] font-bold uppercase">
-              {isFounder ? "Pro" : "Free plan"}
+              {paid ? "Exports open" : isFounder ? `Founding $${FOUNDING_PRICE}/mo` : "Free plan"}
             </span>
-            <Link
-              href="/pricing"
-              className="text-[11px] font-bold underline-offset-2 hover:underline"
-            >
-              Upgrade →
-            </Link>
+            {paid ? (
+              <Link
+                href="/account"
+                className="text-[11px] font-bold underline-offset-2 hover:underline"
+              >
+                Manage →
+              </Link>
+            ) : (
+              <Link
+                href="/upgrade?plan=studio"
+                prefetch={false}
+                className="text-[11px] font-bold underline-offset-2 hover:underline"
+              >
+                Upgrade →
+              </Link>
+            )}
           </div>
         </div>
       </div>

@@ -21,11 +21,12 @@ export default function SignUpPage() {
 
         <div className="mt-8 w-full">
           {/* A brand-new account has no books yet: land it on Scribe, where the
-              idea typed on the landing page is already waiting. Login keeps
-              sending returning users to their dashboard. */}
+              idea typed on the landing page is already waiting, unless the
+              visitor was on the way somewhere (a plan on /upgrade), in which
+              case Clerk's redirect_url wins. */}
           <SignUp
             routing="hash"
-            forceRedirectUrl="/create"
+            fallbackRedirectUrl="/create"
             signInUrl="/login"
             appearance={{
               elements: {

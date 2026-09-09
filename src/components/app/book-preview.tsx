@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Download, Folder as FolderIcon, Loader2, Palette } from "lucide-react";
+import { UpgradePanel } from "@/components/app/upgrade-panel";
 import { BookReader, type ReaderControls } from "@/components/book/book-reader";
 import { ThemePicker } from "@/components/app/theme-picker";
 import type { BookDesign, BookTheme } from "@/lib/book-design";
@@ -17,7 +18,7 @@ type Chapter = {
 
 /* What the pack holds, folder by folder — the same list the server builds. */
 const PACK_FOLDERS = [
-  { name: "Amazon KDP", files: "eBook EPUB, paperback interior PDF, cover" },
+  { name: "Amazon KDP", files: "eBook EPUB, paperback interior and print cover PDFs, cover" },
   { name: "Apple Books", files: "EPUB, cover" },
   { name: "Kobo", files: "EPUB, cover" },
   { name: "Etsy", files: "Digital PDF, cover" },
@@ -33,6 +34,7 @@ const EXPORT_ERROR: Record<string, string> = {
   pack_failed: "The pack could not be produced. Try again in a moment.",
   rate_limited: "Too many exports in a row. Give it a minute.",
   unauthorized: "Your session has expired. Sign in again to continue.",
+  upgrade_required: "Exports come with a plan. Upgrade to download your files.",
 };
 
 /**
@@ -48,6 +50,7 @@ export function BookPreview({
   design,
   themes,
   initialThemeId,
+  canExport,
   chapters,
 }: {
   bookId: string;
@@ -58,6 +61,8 @@ export function BookPreview({
   design: BookDesign;
   themes: BookTheme[];
   initialThemeId: string;
+  /** False on the free plan: the pack is described, the button is a wall. */
+  canExport: boolean;
   chapters: Chapter[];
 }) {
   const [themeId, setThemeId] = useState(initialThemeId);
@@ -204,7 +209,14 @@ export function BookPreview({
             />
           </section>
 
-          <section className="rounded-2xl border-2 border-dashed border-primary/50 bg-primary-soft/50 p-6">
+          {!canExport ? (
+            <UpgradePanel
+              title="Download your book pack"
+              body="Your book is written and every page is readable here. The files themselves — the KDP paperback interior, EPUB, PDF, DOCX and the HD cover, one folder per store — come with a plan."
+            />
+          ) : null}
+
+          <section className={cn("rounded-2xl border-2 border-dashed border-primary/50 bg-primary-soft/50 p-6", !canExport && "hidden")}>
             <p className="text-[10px] font-bold uppercase tracking-wide text-primary-strong">Next step</p>
             <p className="mt-1 font-display text-lg font-semibold">Download your book pack</p>
             <p className="mt-2 text-sm text-muted-foreground">

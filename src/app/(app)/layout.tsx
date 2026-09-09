@@ -27,6 +27,7 @@ export default async function AppLayout({
         displayName={profile.displayName}
         email={profile.email}
         isFounder={profile.isFounder}
+        plan={profile.billing.plan}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <main id="app-main" className="flex-1 overflow-y-auto p-6 lg:p-8">

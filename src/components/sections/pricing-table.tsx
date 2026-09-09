@@ -4,9 +4,11 @@ import { freeFeatures, pricingTiers, proFeatures } from "@/lib/content";
 import { pricing } from "@/lib/site";
 import { cn } from "@/lib/cn";
 
-/* No checkout exists yet: every column sends people to sign up and write
-   their free book. Nothing here promises a payment processor. */
+/* The free column signs people up for their free book; a paid column goes
+   to /upgrade, which asks for a sign-in if needed and then opens the
+   Stripe checkout for that plan. */
 const SIGNUP_LABEL = "Start free — your first book is on us";
+const PLAN_SLUGS: Record<string, string> = { Studio: "studio", "Studio Plus": "studio_plus" };
 const FREE_LINE =
   "Your first book is free. You only pay when you're ready to export and sell it.";
 
@@ -106,7 +108,8 @@ export function PricingTable({ compact = false }: { compact?: boolean }) {
               </ul>
 
               <Link
-                href="/signup"
+                href={free ? "/signup" : `/upgrade?plan=${PLAN_SLUGS[tier.name] ?? "studio"}`}
+                prefetch={free ? undefined : false}
                 className={cn(
                   "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-center text-sm font-semibold tracking-tight transition-colors duration-200",
                   tier.popular
@@ -114,7 +117,7 @@ export function PricingTable({ compact = false }: { compact?: boolean }) {
                     : "border border-border bg-background text-foreground hover:border-foreground/30 hover:bg-surface-warm",
                 )}
               >
-                {SIGNUP_LABEL}
+                {free ? SIGNUP_LABEL : `Get ${tier.name}`}
                 <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
               </Link>
             </div>

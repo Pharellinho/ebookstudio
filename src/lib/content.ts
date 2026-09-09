@@ -281,7 +281,7 @@ export const faqs = [
   },
   {
     q: "Can I try it before paying?",
-    a: "There is no free plan. A paid plan is required to create, export and sell your books, which is what pays for the generation itself. It is $29/mo and you can cancel at any time.",
+    a: "Yes. Your first book is free: written end to end and readable in full on screen. Exporting the files, the coloring studio and further books come with a plan, from $29/mo, cancelled at any time.",
   },
 ];
 

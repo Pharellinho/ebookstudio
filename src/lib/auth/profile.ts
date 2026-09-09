@@ -1,5 +1,6 @@
 import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { loadBilling, type Billing } from "@/lib/billing/subscription";
 
 export type Profile = {
   id: string;
@@ -7,6 +8,8 @@ export type Profile = {
   displayName: string | null;
   imageUrl: string | null;
   isFounder: boolean;
+  /** The subscription as Stripe last reported it; the free plan by default. */
+  billing: Billing;
 };
 
 /**
@@ -53,6 +56,7 @@ export async function ensureProfile(input: {
       .select("id, email, display_name, image_url, is_founder")
       .single();
 
+    const billing = await loadBilling(input.clerkUserId);
     if (error || !updated) {
       console.error("ensureProfile update failed", error);
       return {
@@ -61,6 +65,7 @@ export async function ensureProfile(input: {
         displayName: existing.display_name,
         imageUrl: existing.image_url,
         isFounder: existing.is_founder,
+        billing,
       };
     }
 
@@ -70,6 +75,7 @@ export async function ensureProfile(input: {
       displayName: updated.display_name,
       imageUrl: updated.image_url,
       isFounder: updated.is_founder,
+      billing,
     };
   }
 
@@ -96,6 +102,7 @@ export async function ensureProfile(input: {
     displayName: created.display_name,
     imageUrl: created.image_url,
     isFounder: created.is_founder,
+    billing: await loadBilling(created.id),
   };
 }
 

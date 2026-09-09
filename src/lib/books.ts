@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { defaultThemeId, themesForFormat } from "@/lib/book-design";
 import type { CoverCandidate } from "@/lib/cover-rules";
 import type { BookOutline } from "@/lib/generation/prompts";
+import type { ColoringSettings } from "@/lib/coloring";
 
 export type BookRow = {
   id: string;
@@ -29,6 +30,8 @@ export type BookRow = {
   cover_candidates?: CoverCandidate[] | null;
   /** Three-cover runs spent on this book. */
   cover_runs?: number | null;
+  /** Per-format settings (coloring books), migration 0012. Null for ebooks. */
+  settings?: ColoringSettings | null;
   created_at: string;
   updated_at: string;
 };
@@ -59,6 +62,7 @@ export async function createBook(input: {
   outline?: BookOutline | null;
   /** The name drawn on the cover; null when the author has not said. */
   coverAuthor?: string | null;
+  settings?: ColoringSettings | null;
   status?: BookRow["status"];
 }): Promise<BookRow> {
   /* The id is minted here rather than by the database so the interior theme
@@ -81,6 +85,7 @@ export async function createBook(input: {
     accent?: string;
     theme?: string;
     cover_author?: string | null;
+    settings?: ColoringSettings | null;
   };
   const base: BookInsert = {
     id,
@@ -100,7 +105,12 @@ export async function createBook(input: {
      Creating a book must keep working meanwhile: drop the missing column and
      try again; the values are then derived at read time. */
   const withAuthor = input.coverAuthor ? { cover_author: input.coverAuthor } : {};
-  let { data, error } = await insert({ ...base, ...withAuthor, accent, theme: themeId });
+  const withSettings = input.settings ? { settings: input.settings } : {};
+  let { data, error } = await insert({ ...base, ...withAuthor, ...withSettings, accent, theme: themeId });
+  if (error && /settings/i.test(error.message)) {
+    console.warn("books.settings column missing — run supabase/migrations/0012_books_settings.sql");
+    ({ data, error } = await insert({ ...base, ...withAuthor, accent, theme: themeId }));
+  }
   if (error && /cover_author/i.test(error.message)) {
     console.warn("books.cover_author column missing — run supabase/migrations/0010_book_covers.sql");
     ({ data, error } = await insert({ ...base, accent, theme: themeId }));
@@ -157,6 +167,7 @@ export async function updateBook(
     theme: string;
     cover_author: string | null;
     cover_candidates: CoverCandidate[];
+    settings: ColoringSettings | null;
   }>,
 ): Promise<void> {
   const { error } = await admin()
@@ -168,6 +179,16 @@ export async function updateBook(
 }
 
 /** Bumps updated_at so a generation in progress never looks abandoned. */
+/** How many books an account holds, deleted ones excluded by being gone. */
+export async function countBooksForUser(userId: string): Promise<number> {
+  const { count, error } = await admin()
+    .from("books")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
 export async function touchBook(bookId: string): Promise<void> {
   const { error } = await admin()
     .from("books")

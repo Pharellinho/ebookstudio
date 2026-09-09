@@ -1,6 +1,6 @@
 import "server-only";
 import type { EbookFormat } from "@/lib/content";
-import { GENERATION_MODEL, getOpenAI, sampling } from "@/lib/generation/openai";
+import { GENERATION_MODEL, getOpenAI, sampling, logUsage } from "@/lib/generation/openai";
 import {
   rewriteSystemPrompt,
   rewriteUserPrompt,
@@ -62,6 +62,7 @@ export async function rewriteParagraph(input: {
       },
     ],
   });
+  logUsage("rewrite", GENERATION_MODEL, completion.usage);
 
   const text = cleanReplacement(completion.choices[0]?.message?.content ?? "");
   if (!text) throw new Error("Empty rewrite");

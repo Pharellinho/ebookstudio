@@ -7,7 +7,10 @@ import { DOCX_MIME, docxFileName, renderDocx } from "@/lib/export/docx";
 import { EPUB_MIME, epubFileName, renderEpub } from "@/lib/export/epub";
 import { PDF_MIME, pdfFileName, renderPdf } from "@/lib/export/pdf";
 import { PACK_MIME, packFileName, renderPack } from "@/lib/export/pack";
+import { renderColoringPack } from "@/lib/export/coloring-pack";
 import { originAllowed } from "@/lib/request-origin";
+import { planAllowsExport } from "@/lib/billing/plans";
+import { loadBilling } from "@/lib/billing/subscription";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -26,8 +29,8 @@ function isFormat(value: unknown): value is Format {
  * POST { format } → the book as a file.
  *
  * Same door as every book route: the origin is ours, the user is signed in,
- * and the book is theirs, or it is "not found". No free/paid gate yet; that
- * comes with the pricing screen. DOCX is built from the document model;
+ * and the book is theirs, or it is "not found". Then the plan: the free
+ * book is read on screen, the files come with a plan (402). DOCX is built from the document model;
  * PDF is the Preview's own pages, printed by a headless browser from the
  * token-protected print page. EPUB is reflowable XHTML from the model.
  */
@@ -47,6 +50,11 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
+  const billing = await loadBilling(userId);
+  if (!planAllowsExport(billing.plan)) {
+    return NextResponse.json({ error: "upgrade_required" }, { status: 402 });
+  }
+
   let payload: unknown = {};
   try {
     payload = await request.json();
@@ -61,6 +69,31 @@ export async function POST(request: Request, { params }: Params) {
   const variant = input.variant === "print" ? "print" : "digital";
 
   const [chapters, cover] = await Promise.all([listChapters(book.id), loadCover(book)]);
+
+  /* A coloring book is pictures, not chapters: its own pack, built without a browser. */
+  if (book.format_slug === "coloring-book") {
+    if (wanted !== "pack") {
+      return NextResponse.json({ error: "format_not_available" }, { status: 400 });
+    }
+    try {
+      const pack = await renderColoringPack({ book, cover });
+      return new Response(new Uint8Array(pack.file), {
+        status: 200,
+        headers: {
+          "Content-Type": PACK_MIME,
+          "Content-Length": String(pack.file.byteLength),
+          "Content-Disposition": `attachment; filename="${pack.name}"; filename*=UTF-8''${encodeURIComponent(pack.name)}`,
+          "Cache-Control": "private, no-store",
+          "X-Book-Pages": String(pack.pages),
+        },
+      });
+    } catch (error) {
+      const code = error instanceof Error && error.message === "pages_not_ready" ? "pages_not_ready" : "pack_failed";
+      console.error("coloring pack failed", error);
+      return NextResponse.json({ error: code }, { status: code === "pages_not_ready" ? 409 : 502 });
+    }
+  }
+
   const document = bookDocumentFrom(book, chapters, cover);
   if (document.chapters.length === 0) {
     return NextResponse.json({ error: "nothing_to_export" }, { status: 409 });

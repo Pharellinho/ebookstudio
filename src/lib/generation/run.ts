@@ -8,7 +8,7 @@ import {
   MAX_OUTLINE_CHAPTERS,
   type BookOutline,
 } from "@/lib/generation/prompts";
-import { GENERATION_MODEL, getOpenAI, sampling } from "@/lib/generation/openai";
+import { GENERATION_MODEL, getOpenAI, sampling, logUsage } from "@/lib/generation/openai";
 
 function extractJsonObject(raw: string): unknown {
   const trimmed = raw.trim();
@@ -46,6 +46,7 @@ export async function generateOutline(input: {
     ],
   });
 
+  logUsage("outline", input.model ?? GENERATION_MODEL, completion.usage);
   const raw = completion.choices[0]?.message?.content;
   if (!raw) throw new Error("Empty outline response");
 
@@ -107,6 +108,7 @@ ${input.outline.chapters.map((c, i) => `${i + 1}. ${c.title} — ${c.summary}`).
       },
     ],
   });
+  logUsage("outline-check", input.model ?? GENERATION_MODEL, completion.usage);
 
   const raw = completion.choices[0]?.message?.content ?? "{}";
   const parsed = extractJsonObject(raw) as { problems?: unknown };
@@ -168,6 +170,7 @@ export async function* streamChapter(input: {
     model: GENERATION_MODEL,
     ...sampling(GENERATION_MODEL, 0.75),
     stream: true,
+    stream_options: { include_usage: true },
     messages: [
       { role: "system", content: chapterSystemPrompt(format) },
       {
@@ -191,5 +194,7 @@ export async function* streamChapter(input: {
   for await (const chunk of stream) {
     const text = chunk.choices[0]?.delta?.content;
     if (text) yield text;
+    /* The last chunk carries the usage and no text. */
+    if (chunk.usage) logUsage("chapter", GENERATION_MODEL, chunk.usage);
   }
 }

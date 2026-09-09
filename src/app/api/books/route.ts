@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createBook } from "@/lib/books";
+import { countBooksForUser, createBook } from "@/lib/books";
+import { planAllowsAnotherBook, planAllowsColoring } from "@/lib/billing/plans";
+import { parseOutline } from "@/lib/outline";
+import { parseColoringSettings } from "@/lib/coloring";
 import { COVER_AUTHOR_MAX } from "@/lib/cover-rules";
 import {
   getFormat,
-  MAX_OUTLINE_CHAPTERS,
-  type BookOutline,
+
 } from "@/lib/generation/prompts";
 import { ensureProfile } from "@/lib/auth/profile";
 import { currentUser } from "@clerk/nextjs/server";
@@ -16,51 +18,7 @@ import { originAllowed } from "@/lib/request-origin";
 const CREATE_LIMIT = 20;
 const CREATE_WINDOW_MS = 60 * 60 * 1000;
 
-const MAX_TITLE_LENGTH = 300;
-const MAX_SUMMARY_LENGTH = 2000;
 
-/**
- * The outline a client sends decides how many OpenAI calls the generate route
- * will later make, so it is a bill, not just display data. Anything that is not
- * a well-formed outline within bounds is refused rather than trimmed, so a
- * caller never quietly gets a different book than the one it asked for.
- */
-function parseOutline(value: unknown): BookOutline | null | "invalid" {
-  if (value === null || value === undefined) return null;
-  if (typeof value !== "object" || Array.isArray(value)) return "invalid";
-
-  const raw = value as Record<string, unknown>;
-  const title = typeof raw.title === "string" ? raw.title.trim() : "";
-  const subtitle = typeof raw.subtitle === "string" ? raw.subtitle.trim() : "";
-
-  if (!title || title.length > MAX_TITLE_LENGTH) return "invalid";
-  if (subtitle.length > MAX_TITLE_LENGTH) return "invalid";
-  if (!Array.isArray(raw.chapters)) return "invalid";
-  if (raw.chapters.length < 1 || raw.chapters.length > MAX_OUTLINE_CHAPTERS) {
-    return "invalid";
-  }
-
-  const chapters: BookOutline["chapters"] = [];
-  for (const entry of raw.chapters) {
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-      return "invalid";
-    }
-    const chapter = entry as Record<string, unknown>;
-    const chapterTitle =
-      typeof chapter.title === "string" ? chapter.title.trim() : "";
-    const summary =
-      typeof chapter.summary === "string" ? chapter.summary.trim() : "";
-
-    if (!chapterTitle || chapterTitle.length > MAX_TITLE_LENGTH) {
-      return "invalid";
-    }
-    if (summary.length > MAX_SUMMARY_LENGTH) return "invalid";
-
-    chapters.push({ title: chapterTitle, summary });
-  }
-
-  return { title, subtitle, chapters };
-}
 
 export async function POST(request: Request) {
   if (!originAllowed(request)) {
@@ -157,6 +115,20 @@ export async function POST(request: Request) {
   if (outline === "invalid") {
     return NextResponse.json({ error: "invalid_outline" }, { status: 400 });
   }
+  const settings = parseColoringSettings(
+    typeof body === "object" && body && "settings" in body ? (body as { settings: unknown }).settings : null,
+  );
+  if (settings === "invalid") {
+    return NextResponse.json({ error: "invalid_settings" }, { status: 400 });
+  }
+
+  /* The free plan holds one book, and the coloring studio comes with a plan. */
+  if (formatSlug === "coloring-book" && !planAllowsColoring(profile.billing.plan)) {
+    return NextResponse.json({ error: "upgrade_required" }, { status: 402 });
+  }
+  if (!planAllowsAnotherBook(profile.billing.plan, await countBooksForUser(userId))) {
+    return NextResponse.json({ error: "upgrade_required" }, { status: 402 });
+  }
 
   try {
     const book = await createBook({
@@ -167,6 +139,7 @@ export async function POST(request: Request) {
       subtitle,
       outline,
       coverAuthor: authorRaw || null,
+      settings,
       status: "draft",
     });
     return NextResponse.json({
