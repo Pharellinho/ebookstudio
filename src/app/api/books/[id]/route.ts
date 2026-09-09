@@ -4,6 +4,8 @@ import { deleteBookForUser, getBookForUser, listChapters, updateBook } from "@/l
 import { resolveTheme, themesForFormat } from "@/lib/book-design";
 import { COVER_AUTHOR_MAX } from "@/lib/cover-rules";
 import { originAllowed } from "@/lib/request-origin";
+import { parseOutline } from "@/lib/outline";
+import { parseColoringSettings } from "@/lib/coloring";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -85,7 +87,7 @@ export async function DELETE(request: Request, { params }: Params) {
 }
 
 /**
- * PATCH { theme?, title?, subtitle?, cover_author? }
+ * PATCH { theme?, title?, subtitle?, cover_author?, outline?, settings? }
  * Cheap, text-only edits the studio makes while the author types. None of
  * them touch a model. The accent column follows the theme so anything that
  * reads only `accent` stays right.
@@ -146,6 +148,23 @@ export async function PATCH(request: Request, { params }: Params) {
     }
     patch.cover_author = input.cover_author.trim() || null;
     echo.cover_author = patch.cover_author;
+  }
+  if (input.outline !== undefined) {
+    // The plan of a coloring book, edited page by page. Same bounds as at creation.
+    const outline = parseOutline(input.outline);
+    if (!outline || outline === "invalid") {
+      return NextResponse.json({ error: "invalid_outline" }, { status: 400 });
+    }
+    patch.outline = outline;
+    echo.outline = outline;
+  }
+  if (input.settings !== undefined) {
+    const settings = parseColoringSettings(input.settings);
+    if (!settings || settings === "invalid") {
+      return NextResponse.json({ error: "invalid_settings" }, { status: 400 });
+    }
+    patch.settings = settings;
+    echo.settings = settings;
   }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "nothing_to_update" }, { status: 400 });

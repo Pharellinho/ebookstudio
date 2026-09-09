@@ -95,7 +95,13 @@ export default async function BooksPage() {
 
             return (
               <BookCardActions key={book.id} bookId={book.id} title={cardTitle}>
-                {book.status === "ready" ? (
+                {book.format_slug === "coloring-book" ? (
+                  /* A coloring book lives in its own studio from the first
+                     draft: its plan is the work, long before it is "ready". */
+                  <Link href={`/coloring/${book.id}`} className={cardClass}>
+                    {card}
+                  </Link>
+                ) : book.status === "ready" ? (
                   <Link href={`/studio/${book.id}`} className={cardClass}>
                     {card}
                   </Link>

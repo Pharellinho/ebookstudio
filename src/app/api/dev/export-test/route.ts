@@ -44,6 +44,8 @@ import { docxFileName, renderDocx } from "@/lib/export/docx";
 import { pdfFileName, renderPdf } from "@/lib/export/pdf";
 import { epubFileName, renderEpub } from "@/lib/export/epub";
 import { packFileName, renderPack } from "@/lib/export/pack";
+import { renderColoringPack } from "@/lib/export/coloring-pack";
+import { renderCoverWrap } from "@/lib/export/cover-wrap";
 
 export const maxDuration = 60;
 
@@ -89,6 +91,47 @@ export async function GET(request: Request) {
   }
 
   const [chapters, cover] = await Promise.all([listChapters(book.id), loadCover(book)]);
+
+  // ?wrap=0.25 — the full print cover (back, spine, front) with that spine
+  // width in inches; &guides=1 draws trim and safety lines on it.
+  const wrapSpine = url.searchParams.get("wrap");
+  if (wrapSpine != null) {
+    if (!cover) return NextResponse.json({ error: "no_cover" }, { status: 409 });
+    const spineWidth = Number(wrapSpine) || 0;
+    const bleed = 0.125;
+    const isColoring = book.format_slug === "coloring-book";
+    const trim = isColoring ? { width: 8.5, height: 11 } : { width: 6, height: 9 };
+    const { theme: bookTheme } = resolveTheme(book.format_slug, book.theme, book.id);
+    const pdf = await renderCoverWrap({
+      front: cover,
+      title: book.title ?? "Untitled",
+      subtitle: book.subtitle,
+      author: book.cover_author ?? "",
+      description: (book.outline?.chapters ?? []).slice(0, 2).map((chapter) => chapter.summary),
+      dimensions: {
+        totalWidth: trim.width * 2 + spineWidth + bleed * 2,
+        height: trim.height + bleed * 2,
+        spineWidth,
+        bleed,
+      },
+      // Sampled from the front picture; the theme accent only if that fails.
+      backColor: url.searchParams.get("accent") === "1" ? bookTheme.accent : null,
+      guides: url.searchParams.get("guides") === "1",
+    });
+    const path = `${out}/cover-wrap-spine-${spineWidth}${url.searchParams.get("guides") === "1" ? "-guides" : ""}.pdf`;
+    await writeFile(path, pdf);
+    return NextResponse.json({ path, bytes: pdf.byteLength, spineWidth, totalWidth: trim.width * 2 + spineWidth + bleed * 2, height: trim.height + bleed * 2 });
+  }
+
+  // A coloring book only has a pack.
+  if (book.format_slug === "coloring-book") {
+    const started = Date.now();
+    const pack = await renderColoringPack({ book, cover, ignoreMinimum: url.searchParams.get("minimum") === "0" });
+    const path = `${out}/${pack.name}`;
+    await writeFile(path, pack.file);
+    return NextResponse.json({ path, bytes: pack.file.byteLength, pages: pack.pages, ms: Date.now() - started });
+  }
+
   const document = bookDocumentFrom(book, chapters, cover);
   // ?only=6 keeps one chapter and drops the front matter, so a Quick Look
   // thumbnail (first page only) shows that chapter's opener and blocks.

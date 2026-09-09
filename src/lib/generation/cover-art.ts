@@ -1,6 +1,6 @@
 import "server-only";
 import type { EbookFormat } from "@/lib/content";
-import { GENERATION_MODEL, getOpenAI, sampling } from "@/lib/generation/openai";
+import { GENERATION_MODEL, getOpenAI, sampling, logUsage } from "@/lib/generation/openai";
 
 const IMAGE_MODEL = "gpt-image-2";
 
@@ -348,6 +348,7 @@ Chapters: ${input.chapterTitles.slice(0, 12).join(" | ") || "(none yet)"}`,
       },
     ],
   });
+  logUsage("cover-brief", GENERATION_MODEL, completion.usage);
 
   const raw = completion.choices[0]?.message?.content ?? "{}";
   let parsed: Record<string, unknown> = {};
@@ -536,13 +537,20 @@ function imageQuality(override?: string): "low" | "medium" | "high" {
 
 /** Long side 2592: the KDP recommendation is 2560, and the 2:3 ratio of the whole product. */
 export const COVER_SIZE = "1728x2592";
+/** A coloring book is printed 8.5 × 11; its cover keeps that shape. */
+export const COLORING_COVER_SIZE = "2432x3152";
 export const COVER_MIME = "image/jpeg";
+
+export function coverSizeFor(formatSlug: string): string {
+  return formatSlug === "coloring-book" ? COLORING_COVER_SIZE : COVER_SIZE;
+}
 
 /** One complete cover as JPEG bytes. */
 export async function generateCover(
   prompt: string,
   variantId = "?",
   qualityOverride?: string,
+  size: string = COVER_SIZE,
 ): Promise<Buffer> {
   if (DEBUG_COVER_PROMPTS) {
     console.log(`[cover] prompt — variant ${variantId}\n${prompt}\n`);
@@ -555,11 +563,12 @@ export async function generateCover(
     /* 2:3, 2592 px on the long side: KDP's "ideal" cover resolution is
        1600 × 2560, and JPEG is the format it takes. Multiples of 16, as the
        model requires. */
-    size: COVER_SIZE,
+    size,
     quality: imageQuality(qualityOverride),
     output_format: "jpeg",
     output_compression: 90,
   });
+  logUsage(`cover-image(${size},${imageQuality(qualityOverride)})`, IMAGE_MODEL, (result as { usage?: Parameters<typeof logUsage>[2] }).usage);
   const b64 = result.data?.[0]?.b64_json;
   if (!b64) throw new Error("The image model returned no picture");
   return Buffer.from(b64, "base64");

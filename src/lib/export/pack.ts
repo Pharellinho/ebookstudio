@@ -6,6 +6,8 @@ import type { BookDocument } from "@/lib/export/document";
 import { renderDocx } from "@/lib/export/docx";
 import { renderEpub } from "@/lib/export/epub";
 import { renderPdfs } from "@/lib/export/pdf";
+import { renderCoverWrap } from "@/lib/export/cover-wrap";
+import { kdpCoverDimensions } from "@/lib/print/kdp";
 
 /**
  * The book pack: one download, one folder per platform, and in each
@@ -13,7 +15,7 @@ import { renderPdfs } from "@/lib/export/pdf";
  *
  *   <title>/
  *     READ-ME.txt
- *     Amazon KDP/          ebook-manuscript.epub, paperback-interior.pdf, cover.jpg
+ *     Amazon KDP/          ebook-manuscript.epub, paperback-interior.pdf, paperback-cover.pdf, cover.jpg
  *     Apple Books/         book.epub, cover.jpg
  *     Kobo/                book.epub, cover.jpg
  *     Etsy/                book.pdf, cover.jpg
@@ -65,6 +67,9 @@ function readMe(doc: BookDocument, coverName: string | null, interiorPages: numb
     hasInterior
       ? `  paperback-interior.pdf  Upload as the manuscript of the paperback (6 x 9 in, ${interiorPages} pages, fonts embedded, gutter included). KDP builds the wrap-around print cover from ${cover} with its Cover Creator.`
       : `  (no paperback interior)  KDP prints books of ${KDP_MIN_INTERIOR_PAGES} pages or more; this one has ${interiorPages}. Add chapters and export again for a paperback.`,
+    hasInterior && coverName
+      ? "  paperback-cover.pdf     The full print cover: back, spine and front, with bleed, sized by KDP's own calculator for this page count on white paper. Upload it as the paperback's cover."
+      : "",
     coverName ? `  ${cover.padEnd(23)} Upload as the eBook cover.` : "  (no cover yet)          Generate one in the studio's Cover tab.",
     "",
     "Apple Books / Kobo",
@@ -107,6 +112,18 @@ export async function renderPack(input: {
   const hasInterior = Boolean(print) && interiorPages >= KDP_MIN_INTERIOR_PAGES;
 
   const coverName = doc.cover ? (doc.cover.type === "png" ? "cover.png" : "cover.jpg") : null;
+  /* The paperback's wrap, sized by KDP's arithmetic for this interior. */
+  const printCover =
+    hasInterior && doc.cover && print
+      ? await renderCoverWrap({
+          front: doc.cover,
+          title: doc.meta.title,
+          subtitle: doc.meta.subtitle,
+          author: doc.meta.author,
+          description: [],
+          dimensions: kdpCoverDimensions({ pageCount: print.pages, trimWidth: 6, trimHeight: 9, paper: "white" }),
+        })
+      : null;
   const root = folderName(doc.meta.title);
   const zip = new JSZip();
   const files: string[] = [];
@@ -122,6 +139,7 @@ export async function renderPack(input: {
 
   put("Amazon KDP/ebook-manuscript.epub", epub);
   if (hasInterior && print) put("Amazon KDP/paperback-interior.pdf", print.file);
+  if (printCover) put("Amazon KDP/paperback-cover.pdf", printCover);
   cover("Amazon KDP");
 
   put("Apple Books/book.epub", epub);

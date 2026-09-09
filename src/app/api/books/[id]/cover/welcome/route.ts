@@ -11,6 +11,7 @@ import {
   generateCover,
   welcomeDirectionIndex,
   COVER_MIME,
+  coverSizeFor,
 } from "@/lib/generation/cover-art";
 import { openaiConfigured } from "@/lib/generation/openai";
 import { getFormat } from "@/lib/generation/prompts";
@@ -123,7 +124,7 @@ export async function POST(request: Request, { params }: Params) {
 
   let candidate: CoverCandidate;
   try {
-    const picture = await generateCover(prompt, `welcome ${brief.register}/${direction.id}`);
+    const picture = await generateCover(prompt, `welcome ${brief.register}/${direction.id}`, undefined, coverSizeFor(book.format_slug));
     const path = await uploadCoverArt(userId, book.id, picture, COVER_MIME);
     candidate = {
       path,

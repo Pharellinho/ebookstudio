@@ -16,6 +16,7 @@ import {
   fallbackCoverBrief,
   generateCover,
   COVER_MIME,
+  coverSizeFor,
 } from "@/lib/generation/cover-art";
 import { openaiConfigured } from "@/lib/generation/openai";
 import { getFormat } from "@/lib/generation/prompts";
@@ -138,7 +139,7 @@ export async function POST(request: Request, { params }: Params) {
         directionIndex: index,
       });
       const variant = `${brief.register}/${directions[index].id}`;
-      const picture = await generateCover(prompt, variant);
+      const picture = await generateCover(prompt, variant, undefined, coverSizeFor(book.format_slug));
       const path = await uploadCoverArt(userId, book.id, picture, COVER_MIME);
       return { path, createdAt: new Date().toISOString(), variant, title };
     }),
