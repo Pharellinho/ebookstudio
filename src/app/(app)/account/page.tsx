@@ -5,7 +5,7 @@ import { UserProfile } from "@clerk/nextjs";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { ManageBillingButton } from "@/components/app/manage-billing-button";
 import { getCurrentProfile } from "@/lib/auth/session";
-import { FOUNDING_PRICE, PLAN_NAMES, PLAN_PRICES } from "@/lib/billing/plans";
+import { PLAN_NAMES, PLAN_PRICES } from "@/lib/billing/plans";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { loadBilling, syncCheckoutSession, type Billing } from "@/lib/billing/subscription";
 
@@ -59,7 +59,7 @@ export default async function AccountPage({ searchParams }: Props) {
 
   const paid = billing.plan !== "free";
   const status = statusLine(billing);
-  const studioPrice = profile.isFounder ? FOUNDING_PRICE : PLAN_PRICES.studio;
+  const studioPrice = PLAN_PRICES.studio;
 
   return (
     <div className="mx-auto max-w-4xl">

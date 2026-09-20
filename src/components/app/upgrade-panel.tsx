@@ -1,22 +1,14 @@
 import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
-import { FOUNDING_PRICE, PLAN_PRICES } from "@/lib/billing/plans";
+import { PLAN_PRICES } from "@/lib/billing/plans";
 
 /**
  * The wall a free account meets where a plan is needed: exports, the
  * coloring studio, a second book. One line on what opens, one button to
  * the checkout, one link to compare. No credit counts, no fine print.
  */
-export function UpgradePanel({
-  title,
-  body,
-  isFounder = false,
-}: {
-  title: string;
-  body: string;
-  isFounder?: boolean;
-}) {
-  const price = isFounder ? FOUNDING_PRICE : PLAN_PRICES.studio;
+export function UpgradePanel({ title, body }: { title: string; body: string }) {
+  const price = PLAN_PRICES.studio;
   return (
     <section className="rounded-2xl border-2 border-dashed border-primary/50 bg-primary-soft/50 p-6">
       <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-primary-strong">
@@ -37,9 +29,6 @@ export function UpgradePanel({
         <Link href="/pricing" className="text-sm font-semibold underline-offset-4 hover:underline">
           Compare plans
         </Link>
-        {isFounder ? (
-          <span className="text-xs font-semibold text-primary-strong">Founding price, yours for as long as you stay.</span>
-        ) : null}
       </div>
     </section>
   );

@@ -21,7 +21,6 @@ export default async function CreatePage() {
         <UpgradePanel
           title="Your next book"
           body={`The free plan holds ${FREE_BOOK_LIMIT === 1 ? "one complete book" : `${FREE_BOOK_LIMIT} books`}, written end to end and readable in full. A plan opens the next ones, with every export.`}
-          isFounder={profile.isFounder}
         />
       </div>
     );

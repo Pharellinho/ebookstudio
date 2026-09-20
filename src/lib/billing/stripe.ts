@@ -1,7 +1,6 @@
 import "server-only";
 import Stripe from "stripe";
 import {
-  FOUNDING_PRICE,
   PLAN_PRICES,
   planFromPriceKey,
   type PaidPlanId,
@@ -39,12 +38,6 @@ const CATALOGUE: Record<PriceKey, CatalogueEntry> = {
     productId: "ebookstudio_studio",
     productName: "EbookStudio Studio",
     amountCents: PLAN_PRICES.studio * 100,
-  },
-  studio_founding_monthly: {
-    plan: "studio",
-    productId: "ebookstudio_studio",
-    productName: "EbookStudio Studio",
-    amountCents: FOUNDING_PRICE * 100,
   },
   studio_plus_monthly: {
     plan: "studio_plus",

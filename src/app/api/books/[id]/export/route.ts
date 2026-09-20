@@ -9,6 +9,7 @@ import { PDF_MIME, pdfFileName, renderPdf } from "@/lib/export/pdf";
 import { PACK_MIME, packFileName, renderPack } from "@/lib/export/pack";
 import { renderColoringPack } from "@/lib/export/coloring-pack";
 import { originAllowed } from "@/lib/request-origin";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { planAllowsExport } from "@/lib/billing/plans";
 import { loadBilling } from "@/lib/billing/subscription";
 
@@ -17,6 +18,14 @@ type Params = { params: Promise<{ id: string }> };
 /* A cold Chromium plus two PDFs of a long book: minutes, not seconds. Same
    ceiling as the generate route; lower it if a deploy is refused. */
 export const maxDuration = 300;
+
+/* An export starts a Chromium for up to a few minutes; a chapter is one
+   model call. So fewer per hour than the 6 generations: five packs an hour
+   is a whole afternoon of re-exporting for an author, and a hard ceiling
+   on how much browser time one account can burn. Counted after every
+   cheaper check, so a refused request never uses up an attempt. */
+const EXPORT_LIMIT = 5;
+const EXPORT_WINDOW_MS = 60 * 60 * 1000;
 
 const FORMATS = ["pack", "docx", "pdf", "epub"] as const;
 type Format = (typeof FORMATS)[number];
@@ -53,6 +62,11 @@ export async function POST(request: Request, { params }: Params) {
   const billing = await loadBilling(userId);
   if (!planAllowsExport(billing.plan)) {
     return NextResponse.json({ error: "upgrade_required" }, { status: 402 });
+  }
+
+  const rate = await checkRateLimit(`books:export:${userId}`, { limit: EXPORT_LIMIT, windowMs: EXPORT_WINDOW_MS });
+  if (!rate.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
   let payload: unknown = {};

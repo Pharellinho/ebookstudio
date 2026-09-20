@@ -18,7 +18,6 @@ export default async function ColoringPage() {
         <UpgradePanel
           title="The coloring book studio"
           body="Plan a coloring book from a theme, have every page drawn as clean black lines, then download the pack for KDP, Etsy and your own site. Every page is drawn by the image model, which is why the studio comes with a plan."
-          isFounder={profile.isFounder}
         />
       </div>
     );

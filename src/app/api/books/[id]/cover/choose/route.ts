@@ -2,8 +2,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getBookForUser, updateBook } from "@/lib/books";
 import { originAllowed } from "@/lib/request-origin";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 type Params = { params: Promise<{ id: string }> };
+
+/* No model behind this route, one database write: generous, but not
+   unbounded, so a script cannot hammer the books table. */
+const CHOOSE_LIMIT = 60;
+const CHOOSE_WINDOW_MS = 60 * 60 * 1000;
 
 /**
  * POST { path } → { chosen }
@@ -23,6 +29,11 @@ export async function POST(request: Request, { params }: Params) {
   const book = await getBookForUser(id, userId);
   if (!book) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  const rate = await checkRateLimit(`books:cover-choose:${userId}`, { limit: CHOOSE_LIMIT, windowMs: CHOOSE_WINDOW_MS });
+  if (!rate.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
   let payload: unknown;

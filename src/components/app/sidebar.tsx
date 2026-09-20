@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { Logo } from "@/components/logo";
-import { FOUNDING_PRICE, PLAN_NAMES, type PlanId } from "@/lib/billing/plans";
+import { PLAN_NAMES, type PlanId } from "@/lib/billing/plans";
 
 type NavItem = {
   href: string;
@@ -42,12 +42,10 @@ const nav: NavItem[] = [
 export function AppSidebar({
   displayName,
   email,
-  isFounder,
   plan,
 }: {
   displayName: string | null;
   email: string | null;
-  isFounder: boolean;
   plan: PlanId;
 }) {
   const pathname = usePathname();
@@ -73,7 +71,7 @@ export function AppSidebar({
           </p>
           <div className="mt-4 flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-black/10 px-2.5 py-1 text-[10px] font-bold uppercase">
-              {paid ? "Exports open" : isFounder ? `Founding $${FOUNDING_PRICE}/mo` : "Free plan"}
+              {paid ? "Exports open" : "Free plan"}
             </span>
             {paid ? (
               <Link

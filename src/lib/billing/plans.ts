@@ -9,7 +9,7 @@
 export type PlanId = "free" | "studio" | "studio_plus";
 export type PaidPlanId = Exclude<PlanId, "free">;
 
-export type PriceKey = "studio_monthly" | "studio_founding_monthly" | "studio_plus_monthly";
+export type PriceKey = "studio_monthly" | "studio_plus_monthly";
 
 export const PLAN_NAMES: Record<PlanId, string> = {
   free: "Free",
@@ -22,14 +22,10 @@ export const PLAN_PRICES: Record<PaidPlanId, number> = {
   studio_plus: 49,
 };
 
-/** Launch pricing for the first hundred on the waitlist: Studio at $19. */
-export const FOUNDING_PRICE = 19;
-
 export const PRICE_KEYS: Record<PaidPlanId, PriceKey> = {
   studio: "studio_monthly",
   studio_plus: "studio_plus_monthly",
 };
-export const FOUNDING_PRICE_KEY: PriceKey = "studio_founding_monthly";
 
 export function isPaidPlan(value: unknown): value is PaidPlanId {
   return value === "studio" || value === "studio_plus";
@@ -39,21 +35,17 @@ export function isPlanId(value: unknown): value is PlanId {
   return value === "free" || isPaidPlan(value);
 }
 
-/** The price a given account pays for a plan: founders get Studio at the launch price. */
-export function priceKeyFor(plan: PaidPlanId, isFounder: boolean): PriceKey {
-  if (plan === "studio" && isFounder) return FOUNDING_PRICE_KEY;
+export function priceKeyFor(plan: PaidPlanId): PriceKey {
   return PRICE_KEYS[plan];
 }
 
-export function priceFor(plan: PaidPlanId, isFounder: boolean): number {
-  if (plan === "studio" && isFounder) return FOUNDING_PRICE;
+export function priceFor(plan: PaidPlanId): number {
   return PLAN_PRICES[plan];
 }
 
 export function planFromPriceKey(key: string | null | undefined): PaidPlanId | null {
   switch (key) {
     case "studio_monthly":
-    case "studio_founding_monthly":
       return "studio";
     case "studio_plus_monthly":
       return "studio_plus";

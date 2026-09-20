@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ url: portal.url, portal: true });
     }
 
-    const price = await ensurePriceId(priceKeyFor(plan, profile.isFounder));
+    const price = await ensurePriceId(priceKeyFor(plan));
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer,

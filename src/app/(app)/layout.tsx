@@ -26,7 +26,6 @@ export default async function AppLayout({
       <AppSidebar
         displayName={profile.displayName}
         email={profile.email}
-        isFounder={profile.isFounder}
         plan={profile.billing.plan}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">

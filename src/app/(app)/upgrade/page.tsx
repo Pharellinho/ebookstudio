@@ -28,8 +28,7 @@ export default async function UpgradePage({ searchParams }: Props) {
   return (
     <div className="mx-auto max-w-2xl py-8">
       <p className="text-center text-[10px] font-bold uppercase tracking-wide text-primary-strong">
-        {PLAN_NAMES[plan]} · ${priceFor(plan, profile.isFounder)}/mo
-        {profile.isFounder && plan === "studio" ? " · founding price" : ""}
+        {PLAN_NAMES[plan]} · ${priceFor(plan)}/mo
       </p>
       <div className="mt-4">
         <CheckoutRedirect plan={plan} />
