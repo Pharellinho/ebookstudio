@@ -752,7 +752,7 @@ function PageView({
 }) {
   if (page.kind === "cover") {
     return (
-      <div className="h-full w-full" style={{ backgroundColor: book.tint }}>
+      <div className="relative h-full w-full" style={{ backgroundColor: book.tint }}>
         <Image
           src={book.cover}
           alt={`Cover of ${book.title}`}

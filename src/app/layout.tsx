@@ -67,28 +67,29 @@ export const metadata: Metadata = {
   },
 };
 
-const structuredData = [
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: site.name,
-    url: site.url,
-    logo: `${site.url}/apple-icon`,
-    description: site.description,
-    email: site.contactEmail,
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: site.name,
-    url: site.url,
-    potentialAction: {
-      "@type": "SearchAction",
-      target: `${site.url}/blog?q={search_term_string}`,
-      "query-input": "required name=search_term_string",
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      name: site.name,
+      url: site.url,
+      logo: `${site.url}/apple-icon`,
+      description: site.description,
+      email: site.contactEmail,
     },
-  },
-];
+    {
+      "@type": "WebSite",
+      name: site.name,
+      url: site.url,
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${site.url}/blog?q={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+  ],
+};
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

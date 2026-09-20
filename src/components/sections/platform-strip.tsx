@@ -105,7 +105,7 @@ export function PlatformStrip() {
               <Image
                 src={platform.logo}
                 alt={platform.name}
-                width={72}
+                width={36}
                 height={36}
                 className={`${platform.className} object-contain`}
               />
