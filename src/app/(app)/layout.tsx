@@ -1,15 +1,58 @@
 import { redirect } from "next/navigation";
+import { SignOutButton } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import { AppSidebar } from "@/components/app/sidebar";
 import { getCurrentProfile } from "@/lib/auth/session";
+import { site } from "@/lib/site";
+
+function AccountSetupError() {
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-surface-warm p-6">
+      <div className="w-full max-w-md rounded-2xl border-2 border-foreground bg-background p-8 text-center shadow-md">
+        <h1 className="font-display text-2xl font-extrabold">
+          We couldn&apos;t open your studio
+        </h1>
+        <p className="mt-3 text-muted-foreground">
+          You&apos;re signed in, but your account didn&apos;t finish setting up.
+          Email us at{" "}
+          <a
+            href={`mailto:${site.contactEmail}`}
+            className="font-semibold text-foreground underline underline-offset-4"
+          >
+            {site.contactEmail}
+          </a>{" "}
+          and we&apos;ll sort it out.
+        </p>
+        <SignOutButton>
+          <button
+            type="button"
+            className="mt-6 inline-flex cursor-pointer items-center rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition-colors hover:bg-foreground/85"
+          >
+            Log out
+          </button>
+        </SignOutButton>
+      </div>
+    </main>
+  );
+}
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { userId } = await auth();
+  if (!userId) {
+    redirect("/login");
+  }
+
   const profile = await getCurrentProfile();
   if (!profile) {
-    redirect("/login");
+    /* Signed in with Clerk, but no Supabase profile could be loaded or
+       created (e.g. the email already belongs to another Clerk user id).
+       Redirecting to /login here loops forever: /login sees a signed-in
+       user and sends them straight back. Stop and say so instead. */
+    return <AccountSetupError />;
   }
 
   /* Column on phones (sidebar on top, content below), row from lg. Without
